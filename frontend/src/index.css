@@ -3067,6 +3067,7 @@ body::before {
   flex: 1;
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -3381,6 +3382,7 @@ body::before {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
 /* -- Modal & Scheduling UI -------------------------------------- */
 
 .modal-overlay {
@@ -3466,3 +3468,606 @@ body::before {
   color: white;
   border-color: var(--gray-500);
 }
+
+/* ── Upskilling Section ───────────────────────────────────────── */
+
+.upskilling-container {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 2rem;
+  margin-top: 2rem;
+  animation: fadeIn 0.5s ease-out;
+}
+
+.upskilling-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.upskilling-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.skill-gap-card {
+  padding: 1.25rem;
+  background: rgba(244, 63, 94, 0.05);
+  border: 1px solid rgba(244, 63, 94, 0.2);
+}
+
+.skill-gap-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.skill-gap-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-glass);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.skill-gap-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--rose-500);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--rose-500);
+}
+
+.course-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.25rem;
+}
+
+.course-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.course-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--primary-500);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.course-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--border-accent);
+  background: var(--bg-card-hover);
+  box-shadow: var(--shadow-lg);
+}
+
+.course-card:hover::before {
+  opacity: 1;
+}
+
+.course-badge {
+  display: inline-flex;
+  padding: 0.25rem 0.625rem;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--primary-300);
+}
+
+.course-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: white;
+  line-height: 1.4;
+}
+
+.course-provider {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--gray-400);
+}
+
+.course-footer {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.course-link {
+  color: var(--primary-400);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: color 0.2s;
+}
+
+.course-link:hover {
+  color: white;
+}
+
+.empty-upskilling {
+  text-align: center;
+  padding: 4rem 2rem;
+  opacity: 0.6;
+}
+
+.empty-upskilling-icon {
+  font-size: 3rem;
+  margin-bottom: 1.5rem;
+  display: block;
+}
+
+@media (max-width: 900px) {
+  .upskilling-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Candidate Interview Hub ─────────────────────────────────── */
+
+.interviews-hub {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+  margin-top: 2rem;
+  animation: fadeIn 0.6s ease-out;
+}
+
+.hub-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.hub-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.hub-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: white;
+}
+
+.hub-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1.5rem;
+}
+
+.hub-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+.hub-card:hover {
+  transform: translateY(-5px);
+  border-color: var(--border-accent);
+  box-shadow: var(--shadow-lg);
+  background: var(--bg-card-hover);
+}
+
+.hub-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 100px;
+  height: 100px;
+  background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.1), transparent 70%);
+  pointer-events: none;
+}
+
+.hub-badge {
+  align-self: flex-start;
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radius-full);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid transparent;
+}
+
+.tag-invitation {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.tag-video {
+  background: rgba(99, 102, 241, 0.15);
+  color: #a5b4fc;
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.tag-ai {
+  background: rgba(139, 92, 246, 0.15);
+  color: #c4b5fd;
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+.hub-card-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: white;
+  margin-top: 0.5rem;
+}
+
+.hub-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  color: var(--gray-400);
+  font-size: 0.9rem;
+}
+
+.hub-card-info-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.hub-card-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: auto;
+  padding-top: 1rem;
+}
+
+.hub-btn {
+  flex: 1;
+  padding: 0.75rem;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-normal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: none;
+}
+
+.hub-btn-primary {
+  background: linear-gradient(135deg, var(--primary-600), var(--primary-500));
+  color: white;
+}
+
+.hub-btn-primary:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+}
+
+.hub-btn-secondary {
+  background: var(--bg-glass);
+  color: var(--gray-300);
+  border: 1px solid var(--border-subtle);
+}
+
+.hub-btn-secondary:hover {
+  border-color: var(--border-accent);
+  color: white;
+}
+
+.hub-btn-danger {
+  background: rgba(244, 63, 94, 0.1);
+  color: var(--rose-400);
+  border: 1px solid rgba(244, 63, 94, 0.2);
+}
+
+.hub-btn-danger:hover {
+  background: var(--rose-500);
+  color: white;
+}
+
+.ai-score-badge {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+}
+
+.ai-score-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--accent-400);
+}
+
+.ai-score-label {
+  font-size: 0.75rem;
+  color: var(--gray-500);
+}
+
+/* ── Premium Apply Modal ─────────────────────────────────────── */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.modal-content.application-modal {
+  width: 100%;
+  max-width: 800px;
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: var(--radius-xl);
+  padding: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-accent);
+}
+
+.modal-content.application-modal::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-content.application-modal::-webkit-scrollbar-thumb {
+  background: var(--border-accent);
+  border-radius: 10px;
+}
+
+.app-modal-header {
+  padding: 2.5rem 2rem 1.5rem;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, transparent 100%);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.app-modal-job-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--accent-400);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: var(--radius-full);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
+.app-modal-title {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: white;
+  margin-bottom: 0.5rem;
+}
+
+.app-modal-body {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.app-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.app-form-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--gray-200);
+}
+
+.app-form-input {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0.875rem 1rem;
+  color: white;
+  font-size: 0.95rem;
+  transition: var(--transition-fast);
+}
+
+.app-form-input:focus {
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  outline: none;
+}
+
+.grid-2-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.profile-preview-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+}
+
+.profile-preview-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.app-modal-footer {
+  padding: 1.5rem 2rem;
+  background: rgba(15, 23, 42, 0.5);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+/* -- Enhanced Recruiter Layouts ------------------------------- */
+
+.recruiter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  color: var(--gray-400);
+}
+
+.deadline-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  background: rgba(244, 63, 94, 0.1);
+  border: 1px solid rgba(244, 63, 94, 0.2);
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  color: var(--rose-400);
+  font-weight: 600;
+}
+
+.job-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.app-card-premium {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.app-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.app-card-candidate-info {
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+}
+
+.app-avatar {
+  width: 54px;
+  height: 54px;
+  background: linear-gradient(135deg, var(--primary-600), var(--primary-500));
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: white;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.app-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.25rem;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 1.5rem;
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  width: 100%;
+}
+
+.app-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.app-detail-label {
+  font-size: 0.75rem;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.app-detail-value {
+  font-size: 0.95rem;
+  color: white;
+  font-weight: 500;
+}
+
+.social-links {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.social-link-btn {
+  padding: 0.35rem 0.75rem;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  color: var(--primary-400);
+  text-decoration: none;
+  transition: var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.social-link-btn:hover {
+  border-color: var(--primary-500);
+  color: white;
+  background: rgba(99, 102, 241, 0.1);
+}
+

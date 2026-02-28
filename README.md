@@ -1,120 +1,107 @@
-# HireFlow AI
+# ⚡ HireFlow AI — Next-Gen Recruitment Automation
 
-AI-driven recruitment automation system with hybrid search, resume parsing, skill matching, and AI-powered interviews.
+**HireFlow AI** is an intelligent, end-to-end recruitment platform designed to bridge the gap between top talent and recruiters using cutting-edge NLP, hybrid search, and conversational AI. 
 
-## Architecture
+Built with a **Premium Glassmorphism Design**, the application provides a sleek, high-performance experience for both hiring teams and job seekers.
 
-```
-mini_project/
-├── backend/                  # FastAPI Python backend
-│   ├── app/
-│   │   ├── core/             # ML modules (NER, embedding, search, ranking, etc.)
-│   │   ├── db/               # SQLAlchemy models and session
-│   │   ├── routes/           # API endpoints (resume, jobs, candidates, interview)
-│   │   ├── services/         # Business logic (pipeline, model loading)
-│   │   ├── config.py         # Centralized settings
-│   │   ├── schemas.py        # Pydantic request/response models
-│   │   └── main.py           # FastAPI app factory
-│   ├── uploads/              # Uploaded resume files
-│   ├── run.py                # Entry point
-│   ├── pyproject.toml        # Python dependencies
-│   └── requirements.txt
-├── frontend/                 # React + Vite frontend
-│   ├── src/
-│   │   ├── api/client.js     # Centralized API client
-│   │   ├── views/            # Main page components
-│   │   ├── components/       # Reusable UI components
-│   │   ├── pages/            # Additional page components
-│   │   └── data/             # Mock data and configuration
-│   ├── index.html
-│   ├── vite.config.js
-│   ├── tailwind.config.js
-│   └── package.json
-└── README.md
-```
+---
 
-## Tech Stack
+## 🚀 Key Features
 
-| Layer     | Technology                                                                 |
-|-----------|----------------------------------------------------------------------------|
-| Frontend  | React, Vite, Tailwind CSS                                                  |
-| Backend   | FastAPI, SQLAlchemy, SQLite                                                |
-| ML/NLP    | BERT NER (`dslim/bert-base-NER`), Sentence Transformers (`all-MiniLM-L6-v2`) |
-| Search    | FAISS (dense), BM25 (sparse), Reciprocal Rank Fusion                       |
-| Interview | OpenAI GPT / Google Gemini (optional, falls back to mock)                  |
+### 👤 For Candidates: The Interview Hub
+Candidates get a unified, AI-enhanced experience to manage their career journey:
+- **Instant Profile Generation**: Upload your resume (PDF/DOCX) and watch as BERT-based NER extracts your skills, experience, and education in seconds.
+- **AI Interview Hub**: A centralized place for all interview activities.
+    - **🤖 AI Screenings**: Conduct job-specific or general aptitude screenings with a real-time conversational AI.
+    - **🎁 Interview Invitations**: Receive, review, and confirm/skip video interview offers from recruiters.
+    - **🎥 Video Calls**: Join scheduled video interviews directly from the portal via the integrated calling system.
+- **📚 Upskilling Recommendations**: Personalized course suggestions (from Coursera, Udemy, etc.) based on identified skill gaps relative to your target job roles.
+- **📈 Live Progress**: Real-time scoring and feedback during AI-led screenings.
 
-## Features
+### 💼 For Recruiters: The Command Center
+Recruiters leverage advanced data science to find the perfect match:
+- **Hybrid Matching Engine**: Combines **Dense Vector Search (FAISS)** with **Sparse Keyword Search (BM25)** for unparalleled candidate discovery.
+- **🎙️ Unified Interview Management**: A single dashboard to monitor AI screening results, schedule video calls, and track candidate progress.
+- **🎯 Skill-Boosted Ranking**: Candidates are automatically ranked using a multi-factor score that considers semantic similarity, exact skill match, and aptitude performance.
+- **⚖️ Fairness-Aware Hiring**: Built-in bias checking that excludes location and company names from scoring, focusing purely on merit.
+- **📥 Application Tracking**: Manage incoming applications and move candidates through the hiring funnel with a single click.
 
-- **Resume Upload** — PDF/DOCX parsing, BERT NER extraction, section chunking, sentence embedding
-- **Hybrid Search** — Dense (FAISS) + sparse (BM25) retrieval with RRF fusion
-- **Skill Matching** — BERT-extracted skill overlap boosting with fairness checks
-- **AI Interview** — LLM-powered technical screening with per-question scoring
-- **Evaluation** — P@5, Hit Rate@10, NDCG@10 metrics with TF-IDF baseline comparison
+---
 
-## Getting Started
+## 🧠 The AI Pipeline (10-Layer Architecture)
+
+The backend implements a sophisticated multi-stage processing pipeline:
+1.  **Resume Parsing**: Intelligent text extraction from complex PDF/DOCX layouts.
+2.  **Named Entity Recognition (NER)**: Powered by `dslim/bert-base-NER` to extract specialized entities (SKILL, JOB_TITLE, etc.).
+3.  **Semantic Chunking**: Breaking down text into context-aware sections (Skills, Experience, Education).
+4.  **Embedding Generation**: Transforming text into 384-dimensional vectors using `all-MiniLM-L6-v2`.
+5.  **Vector Indexing**: High-speed similarity search via Meta's **FAISS**.
+6.  **Hybrid Search**: Combining neural semantic search with BM25 keyword matching via **Reciprocal Rank Fusion (RRF)**.
+7.  **Skill Boost Ranking**: Multiplicative scoring based on BERT-extracted skill overlaps.
+8.  **Fairness Audit**: Real-time logging and audit reports for transparency and bias prevention.
+9.  **AI Interviewing**: Conversational sessions powered by **OpenAI GPT-4o-mini** and **Google Gemini 1.5 Pro**.
+10. **Upskilling Synthesis**: Intelligent skill gap analysis and automated course curriculum generation.
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|---|---|
+| **Frontend** | React 18, Vite, Vanilla CSS (Premium Glassmorphism), Lucide Icons |
+| **Backend** | FastAPI (Python 3.11+), SQLAlchemy, Pydantic |
+| **Database** | SQLite, FAISS (Vector Store) |
+| **NLP/ML** | HuggingFace, BERT, Sentence-Transformers, Rank-BM25 |
+| **AI Models** | OpenAI GPT-4o-mini, Google Gemini 1.5 Pro/Flash |
+
+---
+
+## 🏁 Getting Started
 
 ### Prerequisites
+- Python 3.11+
+- Node.js 18+
+- [uv](https://github.com/astral-sh/uv) (recommended) or pip
 
-- **Python** ≥ 3.11
-- **Node.js** ≥ 18
-- **uv** (recommended) or pip
-
-### Backend Setup
-
+### 1. Backend Setup
 ```bash
 cd backend
+uv sync # or pip install -r requirements.txt
 
-# Create virtual environment and install dependencies
-uv sync          # or: pip install -r requirements.txt
+# Configure your environment
+# Create a .env file with:
+# OPENAI_API_KEY=sk-...
+# GEMINI_API_KEY=...
 
-# (Optional) Set API key for AI interviews
-export OPENAI_API_KEY="your-key"     # or
-export GEMINI_API_KEY="your-key"
-
-# Start the backend server
+# Run the server
 uv run python run.py
-# or: source .venv/bin/activate && python run.py
 ```
+*Note: The first run will automatically download ~150MB of BERT and MiniLM models.*
 
-The backend will start on **http://localhost:8000**.
-
-First startup downloads the NER and embedding models (~100 MB). Subsequent starts use cached models.
-
-### Frontend Setup
-
+### 2. Frontend Setup
 ```bash
 cd frontend
-
-# Install dependencies
 npm install
-
-# Start the development server
 npm run dev
 ```
+Navigate to `http://localhost:5173` to see the portal.
 
-The frontend will start on **http://localhost:5173**.
+---
 
-## API Endpoints
+## 📡 API Overview
 
-| Method | Endpoint                      | Description                              |
-|--------|-------------------------------|------------------------------------------|
-| GET    | `/`                           | Health check                             |
-| POST   | `/upload-resume`              | Upload and process a resume              |
-| GET    | `/candidates`                 | List all candidates                      |
-| GET    | `/candidate/{id}`             | Get full candidate profile               |
-| POST   | `/match-candidates`           | Match candidates to job description      |
-| POST   | `/create-job`                 | Create a new job posting                 |
-| GET    | `/jobs`                       | List all jobs                            |
-| POST   | `/start-interview`            | Start an AI interview session            |
-| POST   | `/interview-message`          | Send a message in an interview           |
-| GET    | `/interview-result/{id}`      | Get interview results                    |
-| GET    | `/evaluate`                   | Run search quality evaluation            |
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/upload-resume` | Parse resume and generate candidate profile. |
+| `POST /api/match-candidates` | AI-driven search across candidate database. |
+| `POST /api/start-aptitude` | Initialize an adaptive AI aptitude sesson. |
+| `POST /api/schedule-interview`| Dispatch video call invitation to candidate. |
+| `GET /api/upskilling-recommendations`| Analyze skill gaps and fetch courses. |
 
-## Environment Variables
+---
 
-| Variable         | Required | Description                         |
-|------------------|----------|-------------------------------------|
-| `OPENAI_API_KEY` | No       | OpenAI key for AI interviews        |
-| `GEMINI_API_KEY` | No       | Google Gemini key for AI interviews |
+## ⚖️ License
+Distributed under the MIT License. See `LICENSE` for more information.
 
-> If neither key is set, the interview feature uses a mock LLM that returns template responses.
+---
+Designed with ❤️ for the future of hiring.

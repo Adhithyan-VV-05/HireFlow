@@ -255,54 +255,128 @@ export default function CandidatePortal() {
                 {/* INTERVIEWS TAB */}
                 {activeTab === 'interviews' && (
                     <div className="portal-section">
-                        <div className="section-header"><h2>🎙️ Interview Hub</h2></div>
+                        <div className="section-header">
+                            <div>
+                                <h2>🎙️ Interview Management Hub</h2>
+                                <p className="muted-text">Track your invitations, scheduled video calls, and AI screening performance.</p>
+                            </div>
+                        </div>
 
-                        {interviewsLoading ? <p>Loading...</p> : (
+                        {interviewsLoading ? (
+                            <div className="loading-state">
+                                <span className="spinner" style={{ width: 40, height: 40, borderWidth: 3 }} />
+                                <p>Syncing your interview schedule...</p>
+                            </div>
+                        ) : (
                             <div className="interviews-hub">
-                                {/* Offers */}
+                                {/* Section 1: Invitations */}
                                 {scheduledInterviews.filter(iv => iv.schedule_status === 'offered').length > 0 && (
                                     <div className="hub-section">
-                                        <h3 style={{ color: '#34d399' }}>🎁 New Invitations</h3>
-                                        {scheduledInterviews.filter(iv => iv.schedule_status === 'offered').map(iv => (
-                                            <div key={iv.id} className="card glass-card hub-card">
-                                                <h4>{iv.job_title}</h4>
-                                                <p>Recruiter: {iv.interviewer_name}</p>
-                                                <p>Proposed: {new Date(iv.scheduled_at).toLocaleString()}</p>
-                                                <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                                                    <button className="action-btn primary-btn" onClick={() => handleRespondInvitation(iv.id, 'accepted')}>Accept</button>
-                                                    <button className="action-btn ghost-btn" onClick={() => handleRespondInvitation(iv.id, 'skipped')}>Skip</button>
+                                        <div className="hub-section-header">
+                                            <h3 className="hub-section-title"><span>🎁</span> New Invitations</h3>
+                                        </div>
+                                        <div className="hub-grid">
+                                            {scheduledInterviews.filter(iv => iv.schedule_status === 'offered').map(iv => (
+                                                <div key={iv.id} className="hub-card">
+                                                    <span className="hub-badge tag-invitation">New Offer</span>
+                                                    <h4 className="hub-card-title">{iv.job_title || 'Role Invitation'}</h4>
+                                                    <div className="hub-card-info">
+                                                        <div className="hub-card-info-item">
+                                                            <span>👤 Recruiter:</span>
+                                                            <span style={{ color: 'white' }}>{iv.interviewer_name || 'Hiring Team'}</span>
+                                                        </div>
+                                                        <div className="hub-card-info-item">
+                                                            <span>📅 Proposed:</span>
+                                                            <span style={{ color: 'white' }}>{new Date(iv.scheduled_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="hub-card-actions">
+                                                        <button className="hub-btn hub-btn-primary" onClick={() => handleRespondInvitation(iv.id, 'accepted')}>
+                                                            Accept & Confirm
+                                                        </button>
+                                                        <button className="hub-btn hub-btn-danger" onClick={() => handleRespondInvitation(iv.id, 'skipped')}>
+                                                            Skip
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
 
-                                {/* Confirmed Video Calls */}
+                                {/* Section 2: Confirmed Calls */}
                                 {scheduledInterviews.filter(iv => iv.schedule_status === 'accepted').length > 0 && (
                                     <div className="hub-section">
-                                        <h3 style={{ color: '#6366f1' }}>🎥 Confirmed Video Calls</h3>
-                                        {scheduledInterviews.filter(iv => iv.schedule_status === 'accepted').map(iv => (
-                                            <div key={iv.id} className="card glass-card hub-card">
-                                                <h4>{iv.job_title}</h4>
-                                                <p>⏰ {new Date(iv.scheduled_at).toLocaleString()}</p>
-                                                <button className="action-btn primary-btn" style={{ marginTop: '1rem', width: '100%' }} onClick={() => window.location.assign(`/video-interview/${iv.id}`)}>Join Now</button>
-                                            </div>
-                                        ))}
+                                        <div className="hub-section-header">
+                                            <h3 className="hub-section-title"><span>🎥</span> Confirmed Video Calls</h3>
+                                        </div>
+                                        <div className="hub-grid">
+                                            {scheduledInterviews.filter(iv => iv.schedule_status === 'accepted').map(iv => (
+                                                <div key={iv.id} className="hub-card">
+                                                    <span className="hub-badge tag-video">Live Session</span>
+                                                    <h4 className="hub-card-title">{iv.job_title}</h4>
+                                                    <div className="hub-card-info">
+                                                        <div className="hub-card-info-item">
+                                                            <span>⏰ Scheduled Time:</span>
+                                                            <span style={{ color: 'white' }}>{new Date(iv.scheduled_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                                                        </div>
+                                                        <div className="hub-card-info-item" style={{ marginTop: '0.5rem' }}>
+                                                            <span className="confidence-dot confidence-high"></span>
+                                                            <span style={{ color: 'var(--accent-400)', fontSize: '0.8rem' }}>Interviewer is ready</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="hub-card-actions">
+                                                        <button className="hub-btn hub-btn-primary" style={{ width: '100%' }} onClick={() => window.location.assign(`/video-interview/${iv.id}`)}>
+                                                            Join Video Call Now
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
 
-                                {/* AI Screenings */}
+                                {/* Section 3: AI Screenings */}
                                 <div className="hub-section">
-                                    <h3 style={{ color: 'var(--primary-400)' }}>🤖 AI Screenings</h3>
-                                    <button className="action-btn secondary-btn" style={{ marginBottom: '1rem' }} onClick={() => startAIInterview(null)}>+ Start General Screening</button>
-                                    <div className="interview-list">
+                                    <div className="hub-section-header">
+                                        <h3 className="hub-section-title"><span>🤖</span> AI Technical Screenings</h3>
+                                        <button className="hub-btn hub-btn-secondary" style={{ width: 'auto', padding: '0.5rem 1rem' }} onClick={() => startAIInterview(null)}>
+                                            + Start Practice Session
+                                        </button>
+                                    </div>
+                                    <div className="hub-grid">
+                                        {interviews.length === 0 && (
+                                            <div className="card glass-card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem', borderStyle: 'dashed' }}>
+                                                <p className="muted-text">No screenings attempted yet. Apply for jobs to unlock role-specific AI interviews!</p>
+                                            </div>
+                                        )}
                                         {interviews.map(iv => (
-                                            <div key={iv.id} className="card glass-card hub-card">
-                                                <h4>{iv.job_title || 'General Screening'}</h4>
-                                                <p>Status: {iv.status}</p>
+                                            <div key={iv.id} className="hub-card">
+                                                <span className="hub-badge tag-ai">{iv.status === 'completed' ? 'Evaluated' : 'In Progress'}</span>
+                                                <h4 className="hub-card-title">{iv.job_title || 'General Aptitude'}</h4>
+
                                                 {iv.status === 'active' ? (
-                                                    <button className="action-btn primary-btn small-btn" onClick={() => startAIInterview(iv.job_id)}>Continue</button>
-                                                ) : <p>Score: {(iv.total_score * 100).toFixed(0)}%</p>}
+                                                    <div className="hub-card-info">
+                                                        <p style={{ fontStyle: 'italic' }}>Ongoing session - finish to see your final score.</p>
+                                                        <div className="hub-card-actions">
+                                                            <button className="hub-btn hub-btn-primary" style={{ width: '100%' }} onClick={() => startAIInterview(iv.job_id)}>
+                                                                Continue Interview
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="hub-card-info">
+                                                        <div className="ai-score-badge">
+                                                            <span className="ai-score-value">{(iv.total_score * 100).toFixed(0)}</span>
+                                                            <span className="ai-score-label">/ 100 Overall Score</span>
+                                                        </div>
+                                                        <div className="hub-card-actions">
+                                                            <button className="hub-btn hub-btn-secondary" style={{ width: '100%' }} onClick={() => startAIInterview(iv.job_id)}>
+                                                                Retake Session
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
@@ -342,19 +416,107 @@ export default function CandidatePortal() {
                 {/* UPSKILLING TAB */}
                 {activeTab === 'upskilling' && (
                     <div className="portal-section">
-                        <div className="section-header"><h2>📚 Upskilling</h2></div>
-                        {upskillingLoading ? <p>Analyzing...</p> : (
-                            <div className="upskilling-wrapper">
-                                <select className="form-input" style={{ marginBottom: '1.5rem' }} onChange={e => loadUpskilling(e.target.value)}>
-                                    <option value="">Select a role</option>
-                                    {upskillingData?.jobs?.map(j => <option key={j.id} value={j.id}>{j.title}</option>)}
-                                </select>
-                                {upskillingData?.recommendations?.map((rec, i) => (
-                                    <div key={i} className="card glass-card" style={{ marginBottom: '1rem' }}>
-                                        <h4>{rec.skill}</h4>
-                                        <ul>{rec.courses?.map((c, ci) => <li key={ci}><a href={c.link} target="_blank">{c.title}</a> ({c.provider})</li>)}</ul>
+                        <div className="section-header">
+                            <div>
+                                <h2>🚀 Career Growth & Upskilling</h2>
+                                <p className="muted-text">Bridge your skill gaps with AI-curated learning paths tailored to your target roles.</p>
+                            </div>
+                        </div>
+
+                        <div className="card glass-card" style={{ marginBottom: '2rem', padding: '1.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                                <div style={{ flex: 1, minWidth: '300px' }}>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--gray-400)', marginBottom: '0.5rem', display: 'block' }}>Target Career Role</label>
+                                    <select
+                                        className="form-input"
+                                        style={{ width: '100%', cursor: 'pointer' }}
+                                        value={selectedJobId}
+                                        onChange={e => {
+                                            setSelectedJobId(e.target.value);
+                                            loadUpskilling(e.target.value);
+                                        }}
+                                    >
+                                        <option value="">Select a role to analyze...</option>
+                                        {allJobs.map(j => <option key={j.id} value={j.id}>{j.title}</option>)}
+                                    </select>
+                                </div>
+                                <button
+                                    className="action-btn ghost-btn"
+                                    onClick={() => loadUpskilling(selectedJobId)}
+                                    style={{ height: '42px', marginTop: '1.3rem' }}
+                                >
+                                    🔄 Refresh Analysis
+                                </button>
+                            </div>
+                        </div>
+
+                        {upskillingLoading ? (
+                            <div className="loading-state" style={{ padding: '4rem 0' }}>
+                                <span className="spinner" style={{ width: 48, height: 48, borderWidth: 4 }} />
+                                <p style={{ marginTop: '1rem', fontSize: '1.1rem' }}>AI is analyzing your profile against the role requirements...</p>
+                            </div>
+                        ) : !upskillingData?.recommendations || upskillingData.recommendations.length === 0 ? (
+                            <div className="empty-upskilling card glass-card">
+                                <span className="empty-upskilling-icon">🎯</span>
+                                <h3>Select a role to start your journey</h3>
+                                <p>We'll analyze your current top skills and find the best courses to help you land your dream job.</p>
+                            </div>
+                        ) : (
+                            <div className="upskilling-container">
+                                {/* Left Side: Skill Gaps */}
+                                <div className="upskilling-sidebar">
+                                    <div className="card glass-card skill-gap-card">
+                                        <h3 style={{ fontSize: '1rem', color: 'var(--rose-400)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            ⚠️ Identified Gaps
+                                        </h3>
+                                        <p style={{ fontSize: '0.8rem', color: 'var(--gray-400)', marginTop: '0.25rem' }}>Skills you need to develop:</p>
+                                        <div className="skill-gap-list">
+                                            {upskillingData.recommendations.map((rec, i) => (
+                                                <div key={i} className="skill-gap-item">
+                                                    <div className="skill-gap-dot" />
+                                                    <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>{rec.skill}</span>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
-                                ))}
+
+                                    <div className="card glass-card" style={{ padding: '1.25rem' }}>
+                                        <h3 style={{ fontSize: '1rem', color: 'var(--accent-400)' }}>💡 Pro Tip</h3>
+                                        <p style={{ fontSize: '0.8rem', color: 'var(--gray-300)', marginTop: '0.5rem', lineHeight: '1.5' }}>
+                                            Complete a course and update your resume to automatically boost your matching score by up to 15% for this role.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Right Side: Recommendations */}
+                                <div className="upskilling-main">
+                                    <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>📚 Recommended Learning Paths</h3>
+                                    <div className="course-grid">
+                                        {upskillingData.recommendations.flatMap((rec, recIdx) =>
+                                            rec.courses?.map((course, cIdx) => (
+                                                <div key={`${recIdx}-${cIdx}`} className="course-card">
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                        <span className="course-badge">{rec.skill}</span>
+                                                        <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                                            {course.level || 'Intermediate'}
+                                                        </span>
+                                                    </div>
+                                                    <h4 className="course-title">{course.title}</h4>
+                                                    <div className="course-provider">
+                                                        <span>🏢 {course.provider}</span>
+                                                        <span>•</span>
+                                                        <span>⏱️ {course.duration || 'approx. 4-6 weeks'}</span>
+                                                    </div>
+                                                    <div className="course-footer">
+                                                        <a href={course.url} target="_blank" rel="noreferrer" className="course-link">
+                                                            View Course Details ➔
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -364,12 +526,63 @@ export default function CandidatePortal() {
             {/* Apply Modal */}
             {applyingJob && (
                 <div className="modal-overlay">
-                    <div className="modal-content glass-card card">
-                        <h3>Apply for {applyingJob.title}</h3>
-                        <textarea className="form-input" rows={4} placeholder="Additional details..." value={additionalDetails} onChange={e => setAdditionalDetails(e.target.value)} />
-                        <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
-                            <button className="action-btn ghost-btn" onClick={() => setApplyingJob(null)}>Cancel</button>
-                            <button className="action-btn primary-btn" onClick={handleApplyJob}>Submit</button>
+                    <div className="modal-content application-modal card">
+                        <div className="app-modal-header">
+                            <span className="app-modal-job-badge">Applying Now</span>
+                            <h3 className="app-modal-title">{applyingJob.title}</h3>
+                            <p className="app-modal-subtitle">Configure your application for the hiring team at {applyingJob.company || 'HireFlow'}.</p>
+                        </div>
+
+                        <div className="app-modal-body">
+                            {/* Profile Snapshot */}
+                            <div className="app-form-group">
+                                <label className="app-form-label">📊 Profile Snapshot <span>(What the recruiter sees)</span></label>
+                                <div className="profile-preview-card">
+                                    <div className="profile-preview-item">
+                                        <span style={{ color: 'var(--gray-500)' }}>Full Name</span>
+                                        <span style={{ color: 'white' }}>{profile?.name || 'Candidate'}</span>
+                                    </div>
+                                    <div className="profile-preview-item" style={{ flexDirection: 'column', gap: '0.5rem', border: 'none' }}>
+                                        <span style={{ color: 'var(--gray-500)' }}>Top Skills Matched</span>
+                                        <div className="skill-tags">
+                                            {profile?.skills?.slice(0, 8).map((s, i) => (
+                                                <span key={i} className="skill-tag skill-tag-matched">{s}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Cover Letter / Why me? */}
+                            <div className="app-form-group">
+                                <label className="app-form-label">✍️ Professional Summary <span>(Max 500 chars)</span></label>
+                                <textarea
+                                    className="app-form-input"
+                                    rows={5}
+                                    placeholder="Briefly explain why you're a perfect fit for this role..."
+                                    value={additionalDetails}
+                                    onChange={e => setAdditionalDetails(e.target.value)}
+                                />
+                            </div>
+
+                            {/* Links & Availability */}
+                            <div className="grid-2-cols">
+                                <div className="app-form-group">
+                                    <label className="app-form-label">🔗 Portfolio / LinkedIn</label>
+                                    <input type="url" className="app-form-input" placeholder="https://..." />
+                                </div>
+                                <div className="app-form-group">
+                                    <label className="app-form-label">📅 Earliest Start Date</label>
+                                    <input type="date" className="app-form-input" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="app-modal-footer">
+                            <button className="hub-btn hub-btn-secondary" onClick={() => setApplyingJob(null)}>Cancel</button>
+                            <button className="hub-btn hub-btn-primary" style={{ padding: '0.75rem 2.5rem' }} onClick={handleApplyJob}>
+                                Confirm Application ➔
+                            </button>
                         </div>
                     </div>
                 </div>
