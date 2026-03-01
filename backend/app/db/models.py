@@ -194,8 +194,35 @@ class JobApplication(Base):
     portfolio_url = Column(Text, nullable=True)
     start_date = Column(Text, nullable=True)
     status = Column(Text, default="pending")  # pending, reviewed, accepted, rejected
+    
+    # Advanced Ranking Scores
+    overall_score = Column(Float, default=0.0)
+    skill_match_score = Column(Float, default=0.0)
+    semantic_score = Column(Float, default=0.0)
+    quality_score = Column(Float, default=0.0)
+    impact_score = Column(Float, default=0.0)
+    completeness_score = Column(Float, default=0.0)
+    analysis_json = Column(Text, default="{}")
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
     job = relationship("Job", backref="applications")
     candidate = relationship("Candidate", backref="applications")
     applied_resume = relationship("Resume")
+
+
+class SkillAssessment(Base):
+    __tablename__ = "skill_assessments"
+
+    id = Column(Text, primary_key=True)
+    candidate_id = Column(Text, ForeignKey("candidates.id"), nullable=False)
+    skill_name = Column(Text, nullable=False)
+    score = Column(Integer, default=0)
+    percentage = Column(Float, default=0.0)
+    correct_count = Column(Integer, default=0)
+    wrong_count = Column(Integer, default=0)
+    skipped_count = Column(Integer, default=0)
+    is_completed = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    candidate = relationship("Candidate", backref="skill_assessments")

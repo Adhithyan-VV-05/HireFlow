@@ -2,6 +2,7 @@
 
 import json
 import uuid
+from typing import Optional
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,6 +12,7 @@ from app.db import get_db, Job
 from app.db.models import User, JobApplication, Candidate
 from app.core.auth import get_current_user, require_interviewer
 from app.schemas import CreateJobRequest, ApplyJobRequest
+from app.services.ranking import compute_ranking_for_application
 
 router = APIRouter(prefix="/api", tags=["jobs"])
 
@@ -110,6 +112,12 @@ async def apply_job(
     db.add(new_app)
     db.commit()
 
+    # Trigger AI Ranking
+    try:
+        compute_ranking_for_application(db, application_id)
+    except Exception as e:
+        print(f"[Ranking] Failed to compute score for {application_id}: {e}")
+
     return {"message": "Application submitted successfully", "application_id": application_id}
 
 
@@ -139,6 +147,13 @@ async def list_job_applications(
                 "applied_resume_id": app.applied_resume_id,
                 "applied_resume_name": app.applied_resume.file_name if app.applied_resume else None,
                 "created_at": str(app.created_at),
+                "overall_score": app.overall_score,
+                "skill_match_score": app.skill_match_score,
+                "semantic_score": app.semantic_score,
+                "quality_score": app.quality_score,
+                "impact_score": app.impact_score,
+                "completeness_score": app.completeness_score,
+                "analysis": json.loads(app.analysis_json) if app.analysis_json else {}
             }
             for app in applications
         ]

@@ -181,3 +181,59 @@ def _mock_evaluate_aptitude(skills: list, text: str) -> dict:
         scores[skill] = round(score, 2)
 
     return scores
+
+
+def generate_skill_mcqs(skill: str) -> list:
+    """Uses LLM to generate 20 MCQ questions for a specific skill."""
+    if _llm_provider == "mock":
+        return _mock_generate_mcqs(skill)
+
+    system_prompt = (
+        f"You are a technical interviewer for {skill}. "
+        "Generate 20 MCQs to assess a candidate. "
+        "Each question MUST have 5 options (A, B, C, D, E) and 1 correct answer. "
+        "Each question should also have a 'time_limit' in seconds (between 10 to 45) based on the question's difficulty/length. "
+        "Return a JSON array of 20 objects with keys: 'question', 'options' (list of 5), 'answer' (A-E), 'time_limit' (int), 'explanation'."
+    )
+
+    messages = [{"role": "user", "content": f"Generate 20 MCQs for {skill}."}]
+    
+    try:
+        response_text = call_llm(system_prompt, messages)
+        # Clean up possible markdown wrappers
+        clean_text = response_text.strip()
+        if clean_text.startswith("```json"):
+            clean_text = clean_text[7:]
+        if clean_text.startswith("```"):
+            clean_text = clean_text[3:]
+        if clean_text.endswith("```"):
+            clean_text = clean_text[:-3]
+        clean_text = clean_text.strip()
+        
+        mcqs = json.loads(clean_text)
+        if isinstance(mcqs, list) and len(mcqs) >= 20:
+            return mcqs[:20]
+        return _mock_generate_mcqs(skill)
+    except Exception as e:
+        print(f"[LLM] MCQ generation failed: {e}")
+        return _mock_generate_mcqs(skill)
+
+
+def _mock_generate_mcqs(skill: str) -> list:
+    """Mock fallback for MCQs."""
+    return [
+        {
+            "question": f"Which of the following describes {skill} correctly?",
+            "options": [
+                f"It is a core library for {skill}.",
+                f"It is a runtime for {skill}.",
+                f"It is a framework based on {skill}.",
+                f"It is a syntax variant of {skill}.",
+                "None of the above."
+            ],
+            "answer": "A",
+            "time_limit": 20,
+            "explanation": "This is a generic mock answer."
+        }
+        for i in range(20)
+    ]

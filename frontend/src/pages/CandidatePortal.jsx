@@ -6,6 +6,8 @@ import ScoreBar from '../components/ScoreBar';
 import CandidateCard from '../components/CandidateCard';
 import AptitudeChatbot from './AptitudeChatbot';
 import ResumeViewer from '../components/ResumeViewer';
+import SkillTestModal from '../components/SkillTestModal';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 export default function CandidatePortal() {
     const { user, logout } = useAuth();
@@ -47,7 +49,6 @@ export default function CandidatePortal() {
 
     // Job application state
     const [applyingJob, setApplyingJob] = useState(null);
-    const [additionalDetails, setAdditionalDetails] = useState('');
     const [portfolioUrl, setPortfolioUrl] = useState('');
     const [startDate, setStartDate] = useState('');
     const [isApplying, setIsApplying] = useState(false);
@@ -58,6 +59,9 @@ export default function CandidatePortal() {
 
     const [myApplications, setMyApplications] = useState([]);
     const [appsLoading, setAppsLoading] = useState(false);
+
+    // Skill Test state
+    const [skillToTest, setSkillToTest] = useState(null);
 
     useEffect(() => {
         loadProfile();
@@ -122,13 +126,11 @@ export default function CandidatePortal() {
             await api.applyJob({
                 job_id: applyingJob.id,
                 applied_resume_id: selectedResumeId,
-                additional_details: additionalDetails,
                 portfolio_url: portfolioUrl,
                 start_date: startDate
             });
             alert('Application submitted successfully!');
             setApplyingJob(null);
-            setAdditionalDetails('');
             setPortfolioUrl('');
             setStartDate('');
             setSelectedResumeId('');
@@ -253,9 +255,9 @@ export default function CandidatePortal() {
                                 </div>
                                 <div className="profile-basic-info">
                                     <h2 className="profile-full-name">{profile?.name || 'Candidate Name'}</h2>
-                                    <p className="profile-tagline">🚀 Professional Candidate • {profile?.email}</p>
+                                    <p className="profile-tagline">🚀 Verified Talent • {profile?.email}</p>
                                     <div className="profile-badges">
-                                        <span className="hub-badge pulse-badge">Verified</span>
+                                        {profile?.is_verified && <span className="hub-badge pulse-badge" style={{ background: 'var(--emerald-600)', color: 'white' }}>✓ Verified</span>}
                                         <span className="hub-badge secondary-badge">{resumeHistory.length} Resumes</span>
                                         <span className="hub-badge accent-badge">{myApplications.length} Applications</span>
                                     </div>
@@ -314,11 +316,32 @@ export default function CandidatePortal() {
                                                             {domain}
                                                         </h4>
                                                         <div className="skill-tags">
-                                                            {items.map((s, i) => (
-                                                                <div key={i} className="skill-tag-enhanced small-pill">
-                                                                    {s}
-                                                                </div>
-                                                            ))}
+                                                            {items.map((s, i) => {
+                                                                const testScore = profile?.skill_scores?.[s];
+                                                                return (
+                                                                    <div key={i} className="skill-tag-enhanced" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', padding: '0.6rem 0.8rem' }}>
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: '1rem' }}>
+                                                                            <span style={{ fontWeight: 600 }}>{s}</span>
+                                                                            <span style={{ fontSize: '0.75rem', color: testScore ? 'var(--emerald-400)' : 'var(--gray-500)' }}>
+                                                                                {testScore ? `${testScore.toFixed(0)}%` : '0%'}
+                                                                            </span>
+                                                                        </div>
+                                                                        <button
+                                                                            className={`hub-btn ${testScore ? 'hub-btn-secondary locked-btn' : 'hub-btn-primary'}`}
+                                                                            style={{ padding: '0.2rem 0.5rem', fontSize: '0.65rem', width: '100%' }}
+                                                                            onClick={() => {
+                                                                                if (testScore) {
+                                                                                    alert('You must pay 500Rs to unlock a retake for this subject or purchase premium.');
+                                                                                } else {
+                                                                                    setSkillToTest(s);
+                                                                                }
+                                                                            }}
+                                                                        >
+                                                                            {testScore ? '🔒 Re-test (Premium)' : '⚡ Analyze Skill'}
+                                                                        </button>
+                                                                    </div>
+                                                                );
+                                                            })}
                                                         </div>
                                                     </div>
                                                 ))}
@@ -334,28 +357,67 @@ export default function CandidatePortal() {
 
                                 <div className="card glass-card">
                                     <div className="card-header-fancy">
-                                        <h3>📊 Performance Analytics</h3>
+                                        <h3>📊 Skill Assessment Audit</h3>
                                         <span className="header-icon">📈</span>
                                     </div>
                                     <div className="performance-content">
-                                        {profile?.aptitude_scores && Object.keys(profile.aptitude_scores).length > 0 ? (
-                                            <div className="scores-grid-premium">
-                                                {Object.entries(profile.aptitude_scores).map(([k, v]) => (
-                                                    <div key={k} className="score-card-premium">
-                                                        <div className="score-info-header">
-                                                            <span className="score-label">{k}</span>
-                                                            <span className="score-value">{Math.round(v)}%</span>
-                                                        </div>
-                                                        <div className="premium-progress-bg">
-                                                            <div className="premium-progress-fill" style={{ width: `${v}%` }}></div>
-                                                        </div>
-                                                    </div>
-                                                ))}
+                                        <div className="score-summary-v2" style={{ display: 'flex', gap: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', marginBottom: '1.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                            <div style={{ flex: 1, textAlign: 'center', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--accent-400)' }}>{profile?.overall_score || 0}</div>
+                                                <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--gray-500)' }}>Candidate Score</div>
                                             </div>
+                                            <div style={{ flex: 1, textAlign: 'center' }}>
+                                                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--emerald-400)' }}>{profile?.system_max_score || 100}</div>
+                                                <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'var(--gray-500)' }}>Peer Maximum</div>
+                                            </div>
+                                        </div>
+
+                                        <div className="scores-grid-premium">
+                                            {profile?.skill_scores && Object.entries(profile.skill_scores).map(([k, v]) => (
+                                                <div key={k} className="score-card-premium">
+                                                    <div className="score-info-header">
+                                                        <span className="score-label">{k}</span>
+                                                        <span className="score-value">{v.toFixed(0)}%</span>
+                                                    </div>
+                                                    <div className="premium-progress-bg">
+                                                        <div className="premium-progress-fill" style={{ width: `${v}%`, background: 'var(--accent-500)' }}></div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {(!profile?.skill_scores || Object.keys(profile.skill_scores).length === 0) && (
+                                                <p className="muted-text" style={{ textAlign: 'center', padding: '1rem' }}>No skills analyzed yet. Start a rapid fire test above! ⚡</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="card glass-card" style={{ marginTop: '1.5rem', minHeight: '350px' }}>
+                                    <div className="card-header-fancy">
+                                        <h3>📉 Skill Proficiency Chart</h3>
+                                        <span className="header-icon">📊</span>
+                                    </div>
+                                    <div style={{ width: '100%', height: '260px', padding: '1rem' }}>
+                                        {profile?.skill_scores && Object.keys(profile.skill_scores).length > 0 ? (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={Object.entries(profile?.skill_scores || {}).map(([name, value]) => ({ name, value }))}>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                                                    <XAxis dataKey="name" stroke="var(--gray-600)" fontSize={10} axisLine={false} tickLine={false} />
+                                                    <YAxis stroke="var(--gray-600)" fontSize={10} axisLine={false} tickLine={false} />
+                                                    <Tooltip
+                                                        contentStyle={{ background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '10px' }}
+                                                        itemStyle={{ color: 'var(--accent-400)' }}
+                                                        cursor={{ fill: 'rgba(255,255,255,0.02)' }}
+                                                    />
+                                                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                                                        {Object.entries(profile?.skill_scores || {}).map((entry, index) => (
+                                                            <Cell key={`cell-${index}`} fill={`hsl(${220 + index * 10}, 70%, 60%)`} />
+                                                        ))}
+                                                    </Bar>
+                                                </BarChart>
+                                            </ResponsiveContainer>
                                         ) : (
-                                            <div className="empty-mini-state">
-                                                <p>No assessment data yet. Start an AI interview to see your scores!</p>
-                                                <button className="action-btn primary-btn" onClick={() => setActiveTab('interviews')}>Take Assessment</button>
+                                            <div className="empty-mini-state" style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                                                <p className="muted-text">Test results will appear here as a chart.</p>
                                             </div>
                                         )}
                                     </div>
@@ -387,30 +449,78 @@ export default function CandidatePortal() {
                                 </div>
 
                                 <div className="card glass-card profile-summary-card">
-                                    <h3 style={{ marginBottom: '1rem', fontSize: '1rem' }}>🏆 Profile Summary</h3>
+                                    <h3 style={{ marginBottom: '1rem', fontSize: '1rem', display: 'flex', justifyContent: 'space-between' }}>
+                                        🏆 Profile Summary
+                                        {profile?.global_rank && <span className="rank-badge">{profile.global_rank}</span>}
+                                    </h3>
+
+                                    <div className="profile-completion-section" style={{ marginBottom: '1.5rem' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.4rem', color: 'var(--gray-400)' }}>
+                                            <span>Profile Completion</span>
+                                            <span style={{ color: 'var(--accent-400)', fontWeight: 800 }}>{profile?.completion_percentage || 0}%</span>
+                                        </div>
+                                        <div className="completion-bar-bg" style={{ height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
+                                            <div className="completion-bar-fill" style={{
+                                                width: `${profile?.completion_percentage || 0}%`,
+                                                height: '100%',
+                                                background: 'linear-gradient(90deg, var(--primary-500), var(--accent-500))',
+                                                boxShadow: '0 0 10px rgba(99, 102, 241, 0.4)',
+                                                transition: 'width 1s ease-out'
+                                            }}></div>
+                                        </div>
+                                    </div>
+
+                                    <div className="summary-stat-row">
+                                        <span>System Percentile</span>
+                                        <strong>{Math.max(0, 100 - (profile?.global_rank / (profile?.total_candidates || 1)) * 100).toFixed(0)}th</strong>
+                                    </div>
+                                    <div className="summary-stat-row">
+                                        <span>Current Power Score</span>
+                                        <strong style={{ color: 'var(--accent-400)' }}>{profile?.overall_score || 0} / {profile?.system_max_score || 100}</strong>
+                                    </div>
                                     <div className="summary-stat-row">
                                         <span>Interviews Done</span>
                                         <strong>{scheduledInterviews.filter(i => i.status === 'completed').length}</strong>
                                     </div>
-                                    <div className="summary-stat-row">
-                                        <span>Highest Score</span>
-                                        <strong>{profile?.aptitude_scores ? Math.max(...Object.values(profile.aptitude_scores), 0) : 0}%</strong>
+                                    <div className="summary-stat-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.65rem' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                                            <span>Aptitude Mastery</span>
+                                            <strong style={{ color: profile?.aptitude_mastery > 0 ? 'var(--emerald-400)' : 'var(--gray-500)' }}>
+                                                {profile?.aptitude_mastery > 0
+                                                    ? `${profile.aptitude_mastery.toFixed(0)}%`
+                                                    : 'Not Attempted'}
+                                            </strong>
+                                        </div>
+                                        {(!profile?.aptitude_scores || Object.keys(profile.aptitude_scores).length === 0) && (
+                                            <button
+                                                className="hub-btn hub-btn-primary"
+                                                style={{ width: '100%', padding: '0.6rem', fontSize: '0.8rem', borderRadius: '8px', fontWeight: '700', marginTop: '0.5rem' }}
+                                                onClick={() => startAIInterview(null)}
+                                            >
+                                                ⚡ Aptitude Test
+                                            </button>
+                                        )}
                                     </div>
                                     <div className="summary-stat-row" style={{ alignItems: 'center' }}>
                                         <span>Active Resume</span>
-                                        <button
-                                            className="action-btn ghost-btn small-btn"
-                                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', borderColor: 'rgba(255,255,255,0.1)' }}
-                                            onClick={() => {
-                                                const active = resumeHistory.find(r => r.is_active);
-                                                if (active) setViewingResume({ id: active.id, file_name: active.file_name, url: api.getViewResumeUrl(active.id) });
-                                                else alert('No active resume found. Please upload one in the Upload tab.');
-                                            }}
-                                        >
-                                            👁️ View Resume
-                                        </button>
+                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                            <button className="hub-btn hub-btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                                                onClick={() => {
+                                                    const active = resumeHistory.find(r => r.is_active);
+                                                    if (active) setViewingResume({
+                                                        id: active.id,
+                                                        file_name: active.file_name,
+                                                        url: api.getViewResumeUrl(active.id),
+                                                        entities: profile?.entities
+                                                    });
+                                                    else alert('No active resume found. Please upload one in the Upload tab.');
+                                                }}>
+                                                👁️ View Resume
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
+
                             </div>
                         </div>
                     </div>
@@ -467,7 +577,12 @@ export default function CandidatePortal() {
                                             </div>
                                             <div className="history-actions">
                                                 <button
-                                                    onClick={() => setViewingResume({ id: r.id, file_name: r.file_name, url: api.getViewResumeUrl(r.id) })}
+                                                    onClick={() => setViewingResume({
+                                                        id: r.id,
+                                                        file_name: r.file_name,
+                                                        url: api.getViewResumeUrl(r.id),
+                                                        entities: r.is_active ? profile?.entities : null
+                                                    })}
                                                     className="action-btn ghost-btn"
                                                     style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                                                 >
@@ -621,7 +736,7 @@ export default function CandidatePortal() {
                     <div className="portal-section">
                         <AptitudeChatbot
                             candidateId={profile?.candidate_id}
-                            onClose={() => { setActiveTab('interviews'); loadInterviews(); }}
+                            onClose={() => { setActiveTab('profile'); loadInterviews(); loadProfile(); }}
                         />
                     </div>
                 )}
@@ -848,18 +963,6 @@ export default function CandidatePortal() {
                                 )}
                             </div>
 
-                            {/* Cover Letter / Why me? */}
-                            <div className="app-form-group">
-                                <label className="app-form-label">✍️ Professional Summary <span>(Max 500 chars)</span></label>
-                                <textarea
-                                    className="app-form-input"
-                                    rows={5}
-                                    placeholder="Briefly explain why you're a perfect fit for this role..."
-                                    value={additionalDetails}
-                                    onChange={e => setAdditionalDetails(e.target.value)}
-                                />
-                            </div>
-
                             {/* Links & Availability */}
                             <div className="grid-2-cols">
                                 <div className="app-form-group">
@@ -899,6 +1002,21 @@ export default function CandidatePortal() {
                 onClose={() => setViewingResume(null)}
                 resumeUrl={viewingResume?.url}
                 fileName={viewingResume?.file_name}
+                entities={viewingResume?.entities}
+                onUpdate={async (newEntities) => {
+                    await api.updateProfile({ entities: newEntities });
+                    loadProfile();
+                }}
+            />
+            {/* Skill Test Modal */}
+            <SkillTestModal
+                isOpen={!!skillToTest}
+                onClose={() => setSkillToTest(null)}
+                skill={skillToTest}
+                onComplete={() => {
+                    loadProfile();
+                    setSkillToTest(null);
+                }}
             />
         </div>
     );

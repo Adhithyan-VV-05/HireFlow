@@ -108,10 +108,29 @@ def apply_skill_boost(
             candidate_skills = db_candidate.skills or []
             overlap = _compute_skill_overlap(candidate_skills, job_skills)
 
+            # Get skill assessment data
+            from app.db.models import SkillAssessment
+            assessments = db_session.query(SkillAssessment).filter(
+                SkillAssessment.candidate_id == db_candidate.id,
+                SkillAssessment.is_completed == True
+            ).all()
+            
+            skill_scores = {a.skill_name: a.percentage for a in assessments}
+            is_verified = len(skill_scores) >= 1
+            
+            # Merit bonus based on skill test performance
+            merit_bonus = 0.0
+            if skill_scores:
+                avg_skill_score = sum(skill_scores.values()) / len(skill_scores)
+                merit_bonus = 0.15 * (avg_skill_score / 100)
+            
+            # Verified status bonus
+            verified_bonus = 0.05 if is_verified else 0.0
+
             # Get aptitude scores from candidate profile
             aptitude_scores = db_candidate.aptitude_scores
 
-            # Compute final score: 40% search relevance + 60% skill match
+            # Compute final score: 35% search relevance + 45% skill match + 15% merit + 5% verified
             search_score = cand.get("final_score", cand.get("rrf_score", 0))
             skill_ratio = overlap["match_ratio"]
 
@@ -128,7 +147,7 @@ def apply_skill_boost(
                 if matching_apts:
                     apt_bonus = 0.05 * (sum(matching_apts) / len(matching_apts))
 
-            final_score = (0.4 * search_score) + (0.6 * skill_ratio) + apt_bonus
+            final_score = (0.35 * search_score) + (0.45 * skill_ratio) + merit_bonus + verified_bonus + apt_bonus
             final_score = min(final_score, 1.0)  # Cap at 1.0
 
             # Populate candidate data
@@ -142,6 +161,10 @@ def apply_skill_boost(
             cand["name"] = db_candidate.name
             cand["email"] = db_candidate.email
             cand["skills"] = candidate_skills
+            cand["is_verified"] = is_verified
+            cand["skill_scores"] = skill_scores
+            cand["aptitude_scores"] = aptitude_scores
+            cand["entities"] = db_candidate.entities
 
             # Also attach user account info if linked
             if db_candidate.user_id:

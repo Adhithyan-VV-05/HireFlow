@@ -79,6 +79,7 @@ export const api = {
     matchCandidates: (data) => request('/match-candidates', { method: 'POST', body: JSON.stringify(data) }),
     getMyProfile: () => request('/my-profile'),
     getMyInterviews: () => request('/my-interviews'),
+    updateProfile: (data) => request('/update-profile', { method: 'POST', body: JSON.stringify(data) }),
 
     // Interview (job-linked)
     startInterview: (data) => request('/start-interview', { method: 'POST', body: JSON.stringify(data) }),
@@ -102,6 +103,10 @@ export const api = {
 
     // AI Assistant
     assistantChat: (data) => request('/assistant-chat', { method: 'POST', body: JSON.stringify(data) }),
+
+    // Skill Testing
+    getSkillTestQuestions: (skill) => request(`/skill-test/questions?skill=${skill}`),
+    submitSkillTest: (data) => request('/skill-test/submit', { method: 'POST', body: JSON.stringify(data) }),
 };
 
 export default api;

@@ -5111,3 +5111,94 @@ body::before {
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+
+/* Profile Enhancements */
+.rank-badge {
+  background: linear-gradient(135deg, #6366f1, #a855f7);
+  color: white;
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3);
+}
+
+.completion-bar-fill {
+  box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+.completion-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  animation: shine-bar 2s infinite;
+}
+
+@keyframes shine-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.form-group-mini label {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.small-input {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  padding: 0.5rem !important;
+  font-size: 0.85rem !important;
+  color: white !important;
+  border-radius: 6px !important;
+  width: 100%;
+}
+
+.small-input:focus {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border-color: var(--primary-500) !important;
+  outline: none;
+}
+
+/* Verified Tag */
+.verified-tag {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  display: inline-flex;
+  align-items: center;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+  vertical-align: middle;
+}
+
+.locked-btn {
+  opacity: 0.7;
+  cursor: help !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: var(--gray-400) !important;
+}
+
+.score-summary-v2 {
+  transition: transform 0.3s ease;
+}
+
+.score-summary-v2:hover {
+  transform: translateY(-2px);
+}

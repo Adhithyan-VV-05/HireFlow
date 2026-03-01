@@ -10,9 +10,12 @@ export default function CandidateCard({ candidate, onStartInterview }) {
             <div className="profile-card-header">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'white', marginBottom: '0.25rem' }}>
-                            {candidate.name || 'Unknown Candidate'}
-                        </h3>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'white', marginBottom: '0.25rem', margin: 0 }}>
+                                {candidate.name || 'Unknown Candidate'}
+                            </h3>
+                            {candidate.is_verified && <span className="verified-tag" title="Verified Skill Tests Done">✓ Verified</span>}
+                        </div>
                         {candidate.email && (
                             <p style={{ fontSize: '0.875rem', color: 'var(--gray-400)' }}>{candidate.email}</p>
                         )}

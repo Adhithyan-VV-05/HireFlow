@@ -495,13 +495,42 @@ export default function InterviewerPortal() {
                                             </div>
 
                                             <div className="candidate-header" style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
-                                                <div className="candidate-rank" style={{ width: 60, height: 60, fontSize: '1.5rem', background: 'var(--bg-secondary)', borderRadius: 12 }}>
-                                                    {(candidate.name || 'U').charAt(0).toUpperCase()}
+                                                <div style={{ position: 'relative' }}>
+                                                    <div className="candidate-rank" style={{ width: 60, height: 60, fontSize: '1.5rem', background: 'var(--bg-secondary)', borderRadius: 12 }}>
+                                                        {(candidate.name || 'U').charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div style={{
+                                                        position: 'absolute',
+                                                        bottom: -8,
+                                                        right: -8,
+                                                        background: 'var(--accent-gradient)',
+                                                        color: 'white',
+                                                        fontSize: '0.7rem',
+                                                        padding: '0.2rem 0.5rem',
+                                                        borderRadius: '6px',
+                                                        fontWeight: 900,
+                                                        border: '2px solid var(--bg-primary)'
+                                                    }}>
+                                                        #{candidate.global_rank || '?'}
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <h3 className="candidate-name" style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>{candidate.name}</h3>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                                        <span className="candidate-email" style={{ fontSize: '0.9rem' }}>{candidate.email}</span>
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                        <div>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                                <h3 className="candidate-name" style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>{candidate.name}</h3>
+                                                                {candidate.is_verified && <span className="verified-tag" title="Verified Skill Tests Done">✓ Verified</span>}
+                                                            </div>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                                <span className="candidate-email" style={{ fontSize: '0.9rem' }}>{candidate.email}</span>
+                                                                {candidate.entities?.LOCATION && (
+                                                                    <>
+                                                                        <span style={{ color: 'var(--gray-600)' }}>•</span>
+                                                                        <span style={{ fontSize: '0.85rem', color: 'var(--gray-400)' }}>📍 {candidate.entities.LOCATION}</span>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                         <div className="match-score-pill">
                                                             <span className="match-score-value">{((candidate.final_score || 0) * 100).toFixed(0)}%</span>
                                                             <span className="match-score-label">Match Score</span>
@@ -568,11 +597,30 @@ export default function InterviewerPortal() {
                                                 </div>
                                             )}
 
+                                            {candidate.skill_scores && Object.keys(candidate.skill_scores).length > 0 && (
+                                                <div className="aptitude-preview" style={{ borderTop: 'none', marginTop: '0.5rem' }}>
+                                                    <div className="aptitude-header">
+                                                        <span>⚡ Verified Skill Accuracy (Rapid-Fire Tests)</span>
+                                                    </div>
+                                                    <div className="aptitude-mini-grid">
+                                                        {Object.entries(candidate.skill_scores).map(([label, val]) => {
+                                                            return (
+                                                                <div key={label} className="aptitude-mini-item">
+                                                                    <span style={{ color: 'var(--gray-400)' }}>{label}</span>
+                                                                    <span style={{ color: 'var(--emerald-400)', fontWeight: 'bold' }}>{val.toFixed(0)}%</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             <div className="card-footer" style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1.5rem' }}>
                                                 <button className="hub-btn hub-btn-secondary" style={{ padding: '0.75rem 1.5rem' }}
                                                     onClick={() => setViewingResume({
                                                         file_name: `${candidate.name}_Resume.pdf`,
-                                                        url: api.getLatestResumeUrl(candidate.candidate_id || candidate.id)
+                                                        url: api.getLatestResumeUrl(candidate.candidate_id || candidate.id),
+                                                        entities: candidate.entities
                                                     })}>
                                                     👁️ View Resume
                                                 </button>
@@ -590,16 +638,36 @@ export default function InterviewerPortal() {
                         {!searching && !selectedJob && (
                             <div className="candidate-list">
                                 {allCandidatesLoading ? (
-                                    <p>Loading candidates...</p>
+                                    <div className="loading-state">
+                                        <span className="spinner" style={{ width: 40, height: 40, borderWidth: 3 }} />
+                                        <p>Loading candidates...</p>
+                                    </div>
                                 ) : (
                                     allCandidates.map((candidate, idx) => (
                                         <div key={idx} className="card glass-card candidate-card-row">
                                             <div className="candidate-info">
-                                                <div className="candidate-rank" style={{ background: '#475569' }}>AZ</div>
+                                                <div className="candidate-rank" style={{
+                                                    background: candidate.global_rank <= 3 ? 'linear-gradient(135deg, #6366f1, #a855f7)' : 'var(--gray-700)',
+                                                    fontSize: '0.9rem',
+                                                    fontWeight: 900
+                                                }}>
+                                                    #{candidate.global_rank || (idx + 1)}
+                                                </div>
                                                 <div>
-                                                    <h3 className="candidate-name">{candidate.name || candidate.id}</h3>
-                                                    <p className="candidate-email">{candidate.email || ''}</p>
-                                                    <div className="skill-tags" style={{ marginTop: '0.5rem' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                        <h3 className="candidate-name" style={{ margin: 0 }}>{candidate.name || candidate.id}</h3>
+                                                        {candidate.is_verified && <span className="verified-tag" title="Verified Skill Tests Done">✓ Verified</span>}
+                                                    </div>
+                                                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginTop: '0.2rem' }}>
+                                                        <p className="candidate-email" style={{ margin: 0 }}>{candidate.email || ''}</p>
+                                                        {candidate.entities?.LOCATION && (
+                                                            <>
+                                                                <span style={{ color: 'var(--gray-600)' }}>•</span>
+                                                                <span style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>📍 {candidate.entities.LOCATION}</span>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                    <div className="skill-tags" style={{ marginTop: '0.6rem' }}>
                                                         {(candidate.skills || []).map((skill, i) => (
                                                             <SkillTag key={i} skill={skill} />
                                                         ))}
@@ -610,7 +678,8 @@ export default function InterviewerPortal() {
                                                 <button className="action-btn ghost-btn" style={{ marginRight: '0.5rem' }}
                                                     onClick={() => setViewingResume({
                                                         file_name: `${candidate.name}_Resume.pdf`,
-                                                        url: api.getLatestResumeUrl(candidate.id)
+                                                        url: api.getLatestResumeUrl(candidate.id),
+                                                        entities: candidate.entities
                                                     })}>
                                                     👁️ Resume
                                                 </button>
@@ -622,129 +691,223 @@ export default function InterviewerPortal() {
                                         </div>
                                     ))
                                 )}
-                            </div>
+                            </div >
                         )}
-                    </div>
+                    </div >
                 )}
 
                 {/* APPLICATIONS TAB */}
-                {activeTab === 'applications' && (
-                    <div className="portal-section">
-                        <div className="section-header">
-                            <h2>📥 Incoming Applications</h2>
-                            <button className="action-btn ghost-btn" onClick={fetchApplications}>🔄 Refresh</button>
-                        </div>
-
-                        {loadingApps ? (
-                            <div className="loading-state">
-                                <span className="spinner" style={{ width: 40, height: 40, borderWidth: 3 }} />
-                                <p>Loading job applications...</p>
+                {
+                    activeTab === 'applications' && (
+                        <div className="portal-section">
+                            <div className="section-header">
+                                <h2>📥 Incoming Applications</h2>
+                                <button className="action-btn ghost-btn" onClick={fetchApplications}>🔄 Refresh</button>
                             </div>
-                        ) : applications.length === 0 ? (
-                            <div className="empty-state">
-                                <span className="empty-icon">📥</span>
-                                <p>No applications received yet. Try posting more jobs or refining your requirements.</p>
-                            </div>
-                        ) : (
-                            <div className="candidate-list">
-                                {applications.map((app) => (
-                                    <div key={app.id} className="card glass-card candidate-card-row" style={{ flexDirection: 'column', alignItems: 'flex-start', padding: '1.5rem' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '1.25rem' }}>
-                                            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                                                <div className="candidate-rank" style={{ background: 'var(--primary-600)', borderRadius: '10px' }}>APP</div>
-                                                <div>
-                                                    <h3 className="candidate-name" style={{ margin: 0 }}>{app.candidate_name}</h3>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem' }}>
-                                                        <span style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>{app.candidate_email}</span>
-                                                        <span style={{ color: 'var(--gray-600)' }}>•</span>
-                                                        <span style={{ fontSize: '0.85rem', color: 'var(--accent-400)', fontWeight: 600 }}>{app.job_title}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div style={{ textAlign: 'right', fontSize: '0.75rem', color: 'var(--gray-500)' }}>
-                                                Received: {new Date(app.created_at).toLocaleDateString()}
-                                            </div>
-                                        </div>
 
-                                        <div className="app-review-container" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem', width: '100%' }}>
-                                            <div className="app-summary-section">
-                                                <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--gray-500)', marginBottom: '0.75rem' }}>📝 Professional Summary</h4>
-                                                <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                                    <p style={{ fontSize: '0.9rem', color: '#ccc', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{app.additional_details || "Self-applied through portal."}</p>
+                            {loadingApps ? (
+                                <div className="loading-state">
+                                    <span className="spinner" style={{ width: 40, height: 40, borderWidth: 3 }} />
+                                    <p>Loading job applications...</p>
+                                </div>
+                            ) : applications.length === 0 ? (
+                                <div className="empty-state">
+                                    <span className="empty-icon">📥</span>
+                                    <p>No applications received yet. Try posting more jobs or refining your requirements.</p>
+                                </div>
+                            ) : (
+                                <div className="candidate-list">
+                                    <div className="ranking-controls" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
+                                        <span style={{ color: 'var(--gray-500)', fontSize: '0.9rem', marginRight: '1rem' }}>Sort by:</span>
+                                        <select
+                                            className="form-input"
+                                            style={{ width: 'auto', padding: '0.2rem 1rem', background: 'rgba(255,255,255,0.05)' }}
+                                            onChange={(e) => {
+                                                const sorted = [...applications].sort((a, b) => {
+                                                    if (e.target.value === 'score') return (b.overall_score || 0) - (a.overall_score || 0);
+                                                    return new Date(b.created_at) - new Date(a.created_at);
+                                                });
+                                                setApplications(sorted);
+                                            }}
+                                        >
+                                            <option value="date">Latest Date</option>
+                                            <option value="score">Highest AI Score</option>
+                                        </select>
+                                    </div>
+                                    {applications.map((app) => (
+                                        <div key={app.id} className="card glass-card candidate-card-row" style={{ flexDirection: 'column', alignItems: 'flex-start', padding: '1.5rem', position: 'relative', overflow: 'hidden' }}>
+                                            {app.overall_score > 0 && (
+                                                <div className="ai-score-badge" style={{
+                                                    position: 'absolute',
+                                                    top: 0,
+                                                    right: 0,
+                                                    background: `linear-gradient(135deg, ${app.overall_score > 0.7 ? '#10b981' : app.overall_score > 0.4 ? '#f59e0b' : '#6366f1'}, #4338ca)`,
+                                                    color: 'white',
+                                                    padding: '0.4rem 1rem',
+                                                    borderBottomLeftRadius: '12px',
+                                                    fontSize: '0.85rem',
+                                                    fontWeight: 800,
+                                                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                                                }}>
+                                                    AI Match: {(app.overall_score * 100).toFixed(0)}%
                                                 </div>
-
-                                                <div style={{ marginTop: '1.25rem' }}>
-                                                    <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--gray-500)', marginBottom: '0.75rem' }}>🔗 Links & Availability</h4>
-                                                    <div style={{ display: 'flex', gap: '1rem' }}>
-                                                        {app.portfolio_url && (
-                                                            <a href={app.portfolio_url} target="_blank" rel="noreferrer"
-                                                                style={{ fontSize: '0.85rem', color: 'var(--primary-400)', textDecoration: 'none', background: 'rgba(99, 102, 241, 0.1)', padding: '0.4rem 0.8rem', borderRadius: '6px', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
-                                                                🌐 Portfolio / LinkedIn ➔
-                                                            </a>
-                                                        )}
-                                                        <div style={{ fontSize: '0.85rem', color: 'var(--accent-400)', background: 'rgba(16, 185, 129, 0.1)', padding: '0.4rem 0.8rem', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-                                                            🕒 Avail: {app.start_date || 'Immediate'}
+                                            )}
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '1.25rem' }}>
+                                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                                                    <div className="candidate-rank" style={{ background: 'var(--primary-600)', borderRadius: '10px' }}>APP</div>
+                                                    <div>
+                                                        <h3 className="candidate-name" style={{ margin: 0 }}>{app.candidate_name}</h3>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem' }}>
+                                                            <span style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>{app.candidate_email}</span>
+                                                            <span style={{ color: 'var(--gray-600)' }}>•</span>
+                                                            <span style={{ fontSize: '0.85rem', color: 'var(--accent-400)', fontWeight: 600 }}>{app.job_title}</span>
                                                         </div>
                                                     </div>
                                                 </div>
+                                                <div style={{ textAlign: 'right', fontSize: '0.75rem', color: 'var(--gray-500)' }}>
+                                                    Received: {new Date(app.created_at).toLocaleDateString()}
+                                                </div>
                                             </div>
 
-                                            <div className="app-skills-section">
-                                                <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--gray-500)', marginBottom: '0.75rem' }}>🛠️ Matched Skills</h4>
-                                                <div className="skill-tags" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                                    {app.candidate_skills?.map((s, i) => <SkillTag key={i} skill={s} />)}
+                                            <div className="app-review-container" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem', width: '100%' }}>
+                                                <div className="app-summary-section">
+                                                    <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--gray-500)', marginBottom: '0.75rem' }}>📝 Professional Summary</h4>
+                                                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                        <p style={{ fontSize: '0.9rem', color: '#ccc', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{app.additional_details || "Self-applied through portal."}</p>
+                                                    </div>
+
+                                                    <div style={{ marginTop: '1.25rem' }}>
+                                                        <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--gray-500)', marginBottom: '0.75rem' }}>🔗 Links & Availability</h4>
+                                                        <div style={{ display: 'flex', gap: '1rem' }}>
+                                                            {app.portfolio_url && (
+                                                                <a href={app.portfolio_url} target="_blank" rel="noreferrer"
+                                                                    style={{ fontSize: '0.85rem', color: 'var(--primary-400)', textDecoration: 'none', background: 'rgba(99, 102, 241, 0.1)', padding: '0.4rem 0.8rem', borderRadius: '6px', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+                                                                    🌐 Portfolio / LinkedIn ➔
+                                                                </a>
+                                                            )}
+                                                            <div style={{ fontSize: '0.85rem', color: 'var(--accent-400)', background: 'rgba(16, 185, 129, 0.1)', padding: '0.4rem 0.8rem', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                                                                🕒 Avail: {app.start_date || 'Immediate'}
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                                    <button className="hub-btn hub-btn-secondary" style={{ width: '100%', border: '1px solid var(--accent-500)', background: 'rgba(99, 102, 241, 0.1)' }}
-                                                        onClick={() => setViewingResume({
-                                                            file_name: app.applied_resume_name || `${app.candidate_name}_Resume.pdf`,
-                                                            url: api.getViewResumeUrl(app.applied_resume_id)
-                                                        })}
-                                                        disabled={!app.applied_resume_id}
-                                                    >
-                                                        📄 {app.applied_resume_name ? `View: ${app.applied_resume_name}` : 'View Attached Resume'}
-                                                    </button>
-                                                    <button className="action-btn primary-btn" style={{ width: '100%' }} onClick={() => setSchedulingCandidate({ id: app.candidate_id, name: app.candidate_name })}>
-                                                        📅 Schedule Interview
-                                                    </button>
+
+                                                <div className="app-skills-section">
+                                                    <div className="ai-insight-panel" style={{
+                                                        background: 'rgba(255,255,255,0.02)',
+                                                        padding: '1.25rem',
+                                                        borderRadius: '12px',
+                                                        border: '1px solid rgba(255,255,255,0.05)',
+                                                        marginBottom: '1.5rem'
+                                                    }}>
+                                                        <h4 style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--gray-400)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                            <span style={{ color: 'var(--accent-400)' }}>✦</span> AI Ranking Metrics
+                                                        </h4>
+                                                        <div className="ai-metrics-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                                            <div className="ai-metric-item">
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.3rem' }}>
+                                                                    <span style={{ color: 'var(--gray-500)' }}>Skill Match</span>
+                                                                    <span style={{ color: 'white', fontWeight: 700 }}>{(app.skill_match_score * 100).toFixed(0)}%</span>
+                                                                </div>
+                                                                <div style={{ height: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', overflow: 'hidden' }}>
+                                                                    <div style={{ width: `${app.skill_match_score * 100}%`, height: '100%', background: 'var(--primary-500)' }}></div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="ai-metric-item">
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.3rem' }}>
+                                                                    <span style={{ color: 'var(--gray-500)' }}>Semantic</span>
+                                                                    <span style={{ color: 'white', fontWeight: 700 }}>{(app.semantic_score * 100).toFixed(0)}%</span>
+                                                                </div>
+                                                                <div style={{ height: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', overflow: 'hidden' }}>
+                                                                    <div style={{ width: `${app.semantic_score * 100}%`, height: '100%', background: 'var(--accent-500)' }}></div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="ai-metric-item">
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.3rem' }}>
+                                                                    <span style={{ color: 'var(--gray-500)' }}>Quality</span>
+                                                                    <span style={{ color: 'white', fontWeight: 700 }}>{(app.quality_score * 100).toFixed(0)}%</span>
+                                                                </div>
+                                                                <div style={{ height: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', overflow: 'hidden' }}>
+                                                                    <div style={{ width: `${app.quality_score * 100}%`, height: '100%', background: '#10b981' }}></div>
+                                                                </div>
+                                                            </div>
+                                                            <div className="ai-metric-item">
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.3rem' }}>
+                                                                    <span style={{ color: 'var(--gray-500)' }}>Impact</span>
+                                                                    <span style={{ color: 'white', fontWeight: 700 }}>{(app.impact_score * 100).toFixed(0)}%</span>
+                                                                </div>
+                                                                <div style={{ height: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', overflow: 'hidden' }}>
+                                                                    <div style={{ width: `${app.impact_score * 100}%`, height: '100%', background: '#f59e0b' }}></div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        {app.analysis?.verdict && (
+                                                            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)', fontSize: '0.8rem', color: app.overall_score > 0.6 ? '#10b981' : '#aaa' }}>
+                                                                <strong>Verdict:</strong> {app.analysis.verdict} • Matching {app.analysis.matched_count}/{app.analysis.required_count} core skills.
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--gray-500)', marginBottom: '0.75rem' }}>🛠️ Profile Skills</h4>
+                                                    <div className="skill-tags" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                                        {app.candidate_skills?.slice(0, 10).map((s, i) => <SkillTag key={i} skill={s} />)}
+                                                        {app.candidate_skills?.length > 10 && <span style={{ fontSize: '0.7rem', color: 'var(--gray-500)' }}>+{app.candidate_skills.length - 10} more</span>}
+                                                    </div>
+                                                    <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                                        <button className="hub-btn hub-btn-secondary" style={{ width: '100%', border: '1px solid var(--accent-500)', background: 'rgba(99, 102, 241, 0.1)' }}
+                                                            onClick={() => setViewingResume({
+                                                                file_name: app.applied_resume_name || `${app.candidate_name}_Resume.pdf`,
+                                                                url: api.getViewResumeUrl(app.applied_resume_id),
+                                                                entities: app.analysis?.entities || app.entities
+                                                            })}
+                                                            disabled={!app.applied_resume_id}
+                                                        >
+                                                            📄 {app.applied_resume_name ? `View: ${app.applied_resume_name}` : 'View Attached Resume'}
+                                                        </button>
+                                                        <button className="action-btn primary-btn" style={{ width: '100%' }} onClick={() => setSchedulingCandidate({ id: app.candidate_id, name: app.candidate_name })}>
+                                                            📅 Schedule Interview
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
-            </main>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )
+                }
+            </main >
 
             {/* Scheduling Modal */}
-            {schedulingCandidate && (
-                <div className="modal-overlay">
-                    <div className="modal-content glass-card card">
-                        <div className="modal-header">
-                            <h2 className="card-title">📅 Schedule Interview</h2>
-                            <button className="close-btn" onClick={() => setSchedulingCandidate(null)}>×</button>
-                        </div>
-                        <div style={{ marginBottom: '1.5rem' }}>
-                            <p style={{ color: '#aaa' }}>Candidate: <strong style={{ color: 'white' }}>{schedulingCandidate.name}</strong></p>
-                        </div>
-                        <div className="form-group">
-                            <label className="form-label">Date</label>
-                            <input type="date" className="form-input" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} />
-                        </div>
-                        <div className="form-group" style={{ marginTop: '1rem' }}>
-                            <label className="form-label">Time</label>
-                            <input type="time" className="form-input" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} />
-                        </div>
-                        <div className="modal-footer" style={{ marginTop: '2rem' }}>
-                            <button className="action-btn primary-btn" style={{ width: '100%' }} onClick={handleScheduleInterview} disabled={isScheduling}>
-                                {isScheduling ? 'Scheduling...' : 'Confirm Schedule'}
-                            </button>
+            {
+                schedulingCandidate && (
+                    <div className="modal-overlay">
+                        <div className="modal-content glass-card card">
+                            <div className="modal-header">
+                                <h2 className="card-title">📅 Schedule Interview</h2>
+                                <button className="close-btn" onClick={() => setSchedulingCandidate(null)}>×</button>
+                            </div>
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <p style={{ color: '#aaa' }}>Candidate: <strong style={{ color: 'white' }}>{schedulingCandidate.name}</strong></p>
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Date</label>
+                                <input type="date" className="form-input" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} />
+                            </div>
+                            <div className="form-group" style={{ marginTop: '1rem' }}>
+                                <label className="form-label">Time</label>
+                                <input type="time" className="form-input" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} />
+                            </div>
+                            <div className="modal-footer" style={{ marginTop: '2rem' }}>
+                                <button className="action-btn primary-btn" style={{ width: '100%' }} onClick={handleScheduleInterview} disabled={isScheduling}>
+                                    {isScheduling ? 'Scheduling...' : 'Confirm Schedule'}
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Resume Viewer Modal */}
             <ResumeViewer
@@ -752,7 +915,8 @@ export default function InterviewerPortal() {
                 onClose={() => setViewingResume(null)}
                 resumeUrl={viewingResume?.url}
                 fileName={viewingResume?.file_name}
+                entities={viewingResume?.entities}
             />
-        </div>
+        </div >
     );
 }

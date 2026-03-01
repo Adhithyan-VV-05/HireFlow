@@ -183,7 +183,7 @@ export default function AptitudeChatbot({ candidateId, onClose }) {
                     <div className="aptitude-result-header">
                         <div className="aptitude-result-emoji">{grade.emoji}</div>
                         <h2 className="aptitude-result-title">Interview Complete!</h2>
-                        <p className="aptitude-result-sub">Here's how you performed, {result.candidate_name}</p>
+                        <p className="aptitude-result-sub">Here's how you performed in your assessment</p>
                     </div>
 
                     {/* Big Score */}

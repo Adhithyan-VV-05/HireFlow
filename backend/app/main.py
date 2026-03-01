@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import CORS_ORIGINS
 from app.db import init_db
-from app.routes import auth, resume, jobs, candidates, interview, evaluate, upskilling, assistant
+from app.routes import auth, resume, jobs, candidates, interview, evaluate, upskilling, assistant, skill_test
 
 app = FastAPI(
     title="HireFlow AI",
@@ -17,11 +17,11 @@ app = FastAPI(
     version="2.0.0",
 )
 
-# Advanced CORS
+# Browser-compliant CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For dev, all origins. If credentials needed, replace with list.
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
@@ -36,6 +36,7 @@ app.include_router(interview.router)
 app.include_router(evaluate.router)
 app.include_router(upskilling.router)
 app.include_router(assistant.router)
+app.include_router(skill_test.router)
 
 
 @app.on_event("startup")

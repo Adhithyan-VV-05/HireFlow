@@ -5,7 +5,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.db import get_db, Candidate, FaissMetadata
+from app.db import get_db, Candidate, FaissMetadata, SkillAssessment
 from app.db.models import User
 from app.core.auth import get_current_user, require_interviewer
 from app.schemas import MatchRequest
@@ -19,7 +19,18 @@ async def list_candidates(
     current_user: User = Depends(get_current_user),
 ):
     """List all candidates. Visible to both roles."""
-    candidates = db.query(Candidate).all()
+    all_candidates = db.query(Candidate).all()
+    # Pre-calculate ranks
+    candidate_scores = []
+    for c in all_candidates:
+        avg_score = 0
+        if c.aptitude_scores:
+            scores = c.aptitude_scores.values()
+            avg_score = sum(scores) / len(scores) if scores else 0
+        candidate_scores.append((c.id, avg_score))
+    candidate_scores.sort(key=lambda x: x[1], reverse=True)
+    ranks = {cid: i + 1 for i, (cid, _) in enumerate(candidate_scores)}
+
     return {
         "candidates": [
             {
@@ -30,8 +41,10 @@ async def list_candidates(
                 "entities": c.entities,
                 "aptitude_scores": c.aptitude_scores,
                 "created_at": str(c.created_at),
+                "global_rank": ranks.get(c.id, len(all_candidates)),
+                "total_candidates": len(all_candidates)
             }
-            for c in candidates
+            for c in all_candidates
         ]
     }
 
@@ -58,6 +71,10 @@ async def get_candidate(
         meta_data = json.loads(meta.metadata_json) if meta.metadata_json else {}
         aptitude_scores.update(meta_data.get("aptitude_scores", {}))
 
+    assessments = db.query(SkillAssessment).filter(SkillAssessment.candidate_id == candidate_id).all()
+    skill_scores = {a.skill_name: a.percentage for a in assessments if a.is_completed}
+    is_verified = len(skill_scores) >= 1
+
     return {
         "candidate_id": candidate.id,
         "name": candidate.name,
@@ -66,6 +83,8 @@ async def get_candidate(
         "entities": candidate.entities,
         "chunks": chunks,
         "aptitude_scores": candidate.aptitude_scores,
+        "skill_scores": skill_scores,
+        "is_verified": is_verified,
         "created_at": str(candidate.created_at),
     }
 
@@ -122,6 +141,54 @@ async def get_my_candidate_profile(
         meta_data = json.loads(meta.metadata_json) if meta.metadata_json else {}
         aptitude_scores.update(meta_data.get("aptitude_scores", {}))
 
+    # Skill Assessment data
+    assessments = db.query(SkillAssessment).filter(SkillAssessment.candidate_id == candidate.id).all()
+    skill_scores = {a.skill_name: a.percentage for a in assessments if a.is_completed}
+    is_verified = len(skill_scores) >= 1
+
+    # Overall score for ranking (average of aptitude + average of skill tests if any)
+    def calc_overall(c):
+        apt_score = 0
+        if c.aptitude_scores:
+            s_vals = [float(s) for s in c.aptitude_scores.values()]
+            apt_score = sum(s_vals) / (len(s_vals) * 10) if s_vals else 0
+        
+        tests = db.query(SkillAssessment).filter(SkillAssessment.candidate_id == c.id, SkillAssessment.is_completed == True).all()
+        test_score = 0
+        if tests:
+            test_score = sum(t.percentage for t in tests) / (len(tests) * 100)
+        
+        if not c.aptitude_scores and not tests:
+            return 0
+        
+        div = 0
+        if c.aptitude_scores: div += 1
+        if tests: div += 1
+        return (apt_score + test_score) / div
+
+    # Calculate global rank
+    all_candidates = db.query(Candidate).all()
+    candidate_scores = []
+    for c in all_candidates:
+        candidate_scores.append((c.id, calc_overall(c)))
+    
+    candidate_scores.sort(key=lambda x: x[1], reverse=True)
+    rank = next((i + 1 for i, (cid, _) in enumerate(candidate_scores) if cid == candidate.id), len(all_candidates))
+
+    # Calculate mastery percentage
+    apt_mastery = 0
+    if candidate.aptitude_scores:
+        s_vals = [float(x) for x in candidate.aptitude_scores.values()]
+        apt_mastery = (sum(s_vals) / (len(s_vals) * 10)) * 100
+
+    # Calculate completion: basic fields + skills + aptitude + verified status
+    completion = 0 
+    if candidate.name: completion += 10
+    if candidate.email: completion += 10
+    if candidate.skills: completion += 20
+    if candidate.aptitude_scores: completion += 30
+    if is_verified: completion += 30
+
     return {
         "profile": {
             "candidate_id": candidate.id,
@@ -131,7 +198,15 @@ async def get_my_candidate_profile(
             "entities": candidate.entities,
             "chunks": chunks,
             "aptitude_scores": candidate.aptitude_scores,
+            "aptitude_mastery": int(apt_mastery),
+            "skill_scores": skill_scores,
+            "overall_score": round(float(calc_overall(candidate)) * 100, 1),
+            "is_verified": is_verified,
             "created_at": str(candidate.created_at),
+            "completion_percentage": min(100, int(completion)),
+            "global_rank": rank,
+            "total_candidates": len(all_candidates),
+            "system_max_score": round(float(candidate_scores[0][1]) * 100, 1) if candidate_scores else 100.0
         }
     }
 
@@ -168,3 +243,55 @@ async def get_my_interviews(
         })
 
     return {"interviews": result}
+
+
+@router.post("/update-profile")
+async def update_profile(
+    details: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update candidate profile details."""
+    if current_user.role != "candidate":
+        raise HTTPException(403, "Only candidates can update their profiles")
+
+    candidate = db.query(Candidate).filter(Candidate.user_id == current_user.id).first()
+    if not candidate:
+        raise HTTPException(400, "Please upload a resume first")
+
+    # Update entities (location, skills, education, etc.)
+    # The 'details' dict can contain 'entities' object
+    if "entities" in details:
+        # Merge or replace entities
+        current_entities = candidate.entities
+        new_entities = details["entities"]
+        for k, v in new_entities.items():
+            current_entities[k] = v
+        candidate.entities_json = json.dumps(current_entities)
+        
+        # If skills were updated in entities, sync with skills_json
+        if "SKILL" in new_entities:
+            candidate.skills_json = json.dumps(new_entities["SKILL"])
+
+    # Update top-level fields
+    if "location" in details:
+        ents = candidate.entities
+        ents["LOCATION"] = details["location"]
+        candidate.entities_json = json.dumps(ents)
+
+    if "name" in details:
+        candidate.name = details["name"]
+    
+    if "email" in details:
+        candidate.email = details["email"]
+
+    db.commit()
+    return {
+        "message": "Profile updated successfully",
+        "profile": {
+            "name": candidate.name,
+            "email": candidate.email,
+            "entities": candidate.entities,
+            "skills": candidate.skills
+        }
+    }
