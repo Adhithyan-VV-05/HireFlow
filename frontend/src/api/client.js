@@ -56,6 +56,15 @@ export const api = {
             return res.json();
         });
     },
+    getResumeHistory: () => request('/resume-history'),
+    getViewResumeUrl: (resumeId) => {
+        const token = getToken();
+        return `${API_BASE}/view-resume/${resumeId}${token ? `?token_param=${token}` : ''}`;
+    },
+    getLatestResumeUrl: (candidateId) => {
+        const token = getToken();
+        return `${API_BASE}/view-latest-resume/${candidateId}${token ? `?token_param=${token}` : ''}`;
+    },
 
     // Jobs
     listJobs: () => request('/jobs'),

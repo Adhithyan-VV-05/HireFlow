@@ -64,6 +64,7 @@ class ScheduleInterviewRequest(BaseModel):
 
 class ApplyJobRequest(BaseModel):
     job_id: str
+    applied_resume_id: Optional[str] = None
     additional_details: str = ""
     portfolio_url: Optional[str] = None
     start_date: Optional[str] = None

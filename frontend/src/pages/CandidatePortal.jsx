@@ -5,6 +5,7 @@ import SkillTag from '../components/SkillTag';
 import ScoreBar from '../components/ScoreBar';
 import CandidateCard from '../components/CandidateCard';
 import AptitudeChatbot from './AptitudeChatbot';
+import ResumeViewer from '../components/ResumeViewer';
 
 export default function CandidatePortal() {
     const { user, logout } = useAuth();
@@ -19,6 +20,7 @@ export default function CandidatePortal() {
     const [isUploading, setIsUploading] = useState(false);
     const [uploadResult, setUploadResult] = useState(null);
     const [uploadError, setUploadError] = useState('');
+    const [resumeHistory, setResumeHistory] = useState([]);
     const fileInputRef = useRef(null);
 
     // Interviews state (Unified)
@@ -49,11 +51,16 @@ export default function CandidatePortal() {
     const [portfolioUrl, setPortfolioUrl] = useState('');
     const [startDate, setStartDate] = useState('');
     const [isApplying, setIsApplying] = useState(false);
+    const [selectedResumeId, setSelectedResumeId] = useState('');
+
+    // Resume Viewer state
+    const [viewingResume, setViewingResume] = useState(null);
 
     useEffect(() => {
         loadProfile();
         loadInterviews();
         loadJobs();
+        loadResumeHistory();
     }, []);
 
     const loadProfile = async () => {
@@ -84,12 +91,24 @@ export default function CandidatePortal() {
         finally { setJobsLoading(false); }
     };
 
+    const loadResumeHistory = async () => {
+        try {
+            const data = await api.getResumeHistory();
+            setResumeHistory(data.resumes || []);
+        } catch (err) { console.error(err); }
+    };
+
     const handleApplyJob = async () => {
         if (!applyingJob) return;
+        if (!selectedResumeId) {
+            alert('Please select a resume to attach with your application.');
+            return;
+        }
         setIsApplying(true);
         try {
             await api.applyJob({
                 job_id: applyingJob.id,
+                applied_resume_id: selectedResumeId,
                 additional_details: additionalDetails,
                 portfolio_url: portfolioUrl,
                 start_date: startDate
@@ -99,6 +118,7 @@ export default function CandidatePortal() {
             setAdditionalDetails('');
             setPortfolioUrl('');
             setStartDate('');
+            setSelectedResumeId('');
         } catch (err) {
             alert(err.message || 'Failed to submit application');
         } finally {
@@ -118,8 +138,11 @@ export default function CandidatePortal() {
             formData.append('file', file);
             const data = await api.uploadResume(formData);
             setUploadResult(data);
-            const profileData = await api.getMyProfile();
-            setProfile(profileData.profile);
+
+            // Refresh everything so the dashboard updates
+            await loadProfile();
+            await loadResumeHistory();
+
             setTimeout(() => setActiveTab('profile'), 1500);
         } catch (err) {
             setUploadError(err.message || 'Failed to upload resume.');
@@ -199,7 +222,10 @@ export default function CandidatePortal() {
                 <button className={`tab-btn ${activeTab === 'upload' ? 'active' : ''}`} onClick={() => setActiveTab('upload')}>📄 Upload</button>
                 <button className={`tab-btn ${activeTab === 'interviews' ? 'active' : ''}`} onClick={() => setActiveTab('interviews')}>🎙️ Interviews</button>
                 <button className={`tab-btn ${activeTab === 'jobs' ? 'active' : ''}`} onClick={() => setActiveTab('jobs')}>💼 Jobs</button>
-                <button className={`tab-btn ${activeTab === 'upskilling' ? 'active' : ''}`} onClick={() => setActiveTab('upskilling')}>📚 Upskilling</button>
+                <button className={`tab-btn ${activeTab === 'upskilling' ? 'active' : ''}`} onClick={() => {
+                    setActiveTab('upskilling');
+                    if (!upskillingData) loadUpskilling('');
+                }}>📚 Upskilling</button>
             </nav>
 
             <main className="portal-content">
@@ -244,17 +270,66 @@ export default function CandidatePortal() {
                 {/* UPLOAD TAB */}
                 {activeTab === 'upload' && (
                     <div className="portal-section">
-                        <div className="section-header"><h2>📄 Upload Resume</h2></div>
-                        <div className={`upload-zone ${isDragging ? 'drag-over' : ''}`}
-                            onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
-                            onDragLeave={() => setIsDragging(false)}
-                            onDrop={e => { e.preventDefault(); uploadFile(e.dataTransfer.files[0]); }}
-                            onClick={() => fileInputRef.current.click()}
-                        >
-                            <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={e => uploadFile(e.target.files[0])} />
-                            {isUploading ? <p>Processing...</p> : <p>Drag & Drop or Click to Upload Resume</p>}
+                        <div className="section-header"><h2>📄 Resume Management</h2></div>
+
+                        <div className="card glass-card" style={{ marginBottom: '2rem' }}>
+                            <div className={`upload-zone ${isDragging ? 'drag-over' : ''}`}
+                                onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+                                onDragLeave={() => setIsDragging(false)}
+                                onDrop={e => { e.preventDefault(); uploadFile(e.dataTransfer.files[0]); }}
+                                onClick={() => fileInputRef.current.click()}
+                                style={{ minHeight: '180px' }}
+                            >
+                                <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={e => uploadFile(e.target.files[0])} />
+                                {isUploading ? (
+                                    <div style={{ textAlign: 'center' }}>
+                                        <span className="spinner" style={{ marginBottom: '1rem' }} />
+                                        <p>Analyzing your expertise...</p>
+                                    </div>
+                                ) : (
+                                    <div style={{ textAlign: 'center' }}>
+                                        <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>📤</div>
+                                        <p style={{ fontWeight: 700, fontSize: '1.1rem' }}>Drop your latest resume here</p>
+                                        <p className="muted-text">Supports PDF, DOCX (Max 10MB)</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                        {uploadResult && <div style={{ marginTop: '1rem' }}><CandidateCard candidate={uploadResult} /></div>}
+
+                        {uploadError && <div className="error-box" style={{ marginBottom: '1.5rem' }}>⚠️ {uploadError}</div>}
+
+                        <div className="section-header"><h3>📜 Upload History</h3></div>
+                        <div className="history-list">
+                            {resumeHistory.length === 0 ? (
+                                <p className="muted-text">No previous uploads found.</p>
+                            ) : (
+                                resumeHistory.map((r, i) => (
+                                    <div key={r.id} className={`card glass-card history-item ${r.is_active ? 'active-history' : ''}`}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
+                                            <div className="file-icon">{r.file_name.endsWith('.pdf') ? '📕' : '📘'}</div>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                    <span style={{ fontWeight: 600 }}>{r.file_name}</span>
+                                                    {r.is_active && <span className="hub-badge" style={{ background: 'var(--accent-500)', fontSize: '0.65rem' }}>ACTIVE VERSION</span>}
+                                                </div>
+                                                <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)' }}>
+                                                    Uploaded on {new Date(r.created_at).toLocaleString()}
+                                                </div>
+                                            </div>
+                                            <div className="history-actions">
+                                                <button
+                                                    onClick={() => setViewingResume({ id: r.id, file_name: r.file_name, url: api.getViewResumeUrl(r.id) })}
+                                                    className="action-btn ghost-btn"
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                                                >
+                                                    👁️ Open File
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
                     </div>
                 )}
 
@@ -432,7 +507,12 @@ export default function CandidatePortal() {
                                     </div>
                                     <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <span style={{ fontSize: '0.8rem', color: 'var(--gray-500)', fontWeight: 500 }}>👤 {job.owner_name || 'HireFlow Team'}</span>
-                                        <button className="action-btn primary-btn small-btn" style={{ padding: '0.5rem 1rem' }} onClick={() => setApplyingJob(job)}>Apply Now</button>
+                                        <button className="action-btn primary-btn small-btn" style={{ padding: '0.5rem 1rem' }} onClick={() => {
+                                            setApplyingJob(job);
+                                            // Pre-select active resume if available
+                                            const active = resumeHistory.find(r => r.is_active);
+                                            if (active) setSelectedResumeId(active.id);
+                                        }}>Apply Now</button>
                                     </div>
                                 </div>
                             ))}
@@ -493,31 +573,46 @@ export default function CandidatePortal() {
                                 {/* Left Side: Skill Gaps */}
                                 <div className="upskilling-sidebar">
                                     <div className="card glass-card skill-gap-card">
-                                        <h3 style={{ fontSize: '1rem', color: 'var(--rose-400)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                            ⚠️ Identified Gaps
+                                        <h3 style={{
+                                            fontSize: '1rem',
+                                            color: upskillingData.is_default ? 'var(--accent-400)' : 'var(--rose-400)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem'
+                                        }}>
+                                            {upskillingData.is_default ? '✨ Your Learning Path' : '⚠️ Identified Gaps'}
                                         </h3>
-                                        <p style={{ fontSize: '0.8rem', color: 'var(--gray-400)', marginTop: '0.25rem' }}>Skills you need to develop:</p>
+                                        <p style={{ fontSize: '0.8rem', color: 'var(--gray-400)', marginTop: '0.25rem' }}>
+                                            {upskillingData.is_default ? 'Foundational & level-up courses:' : 'Skills you need to develop:'}
+                                        </p>
                                         <div className="skill-gap-list">
                                             {upskillingData.recommendations.map((rec, i) => (
                                                 <div key={i} className="skill-gap-item">
-                                                    <div className="skill-gap-dot" />
-                                                    <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>{rec.skill}</span>
+                                                    <div className="skill-gap-dot" style={{ background: upskillingData.is_default ? 'var(--accent-500)' : 'var(--rose-500)' }} />
+                                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                        <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>{rec.skill}</span>
+                                                        {rec.category && <span style={{ fontSize: '0.7rem', color: 'var(--gray-500)' }}>{rec.category}</span>}
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
 
                                     <div className="card glass-card" style={{ padding: '1.25rem' }}>
-                                        <h3 style={{ fontSize: '1rem', color: 'var(--accent-400)' }}>💡 Pro Tip</h3>
+                                        <h3 style={{ fontSize: '1rem', color: 'var(--accent-400)' }}>💡 {upskillingData.is_default ? 'Personalized Tips' : 'Pro Tip'}</h3>
                                         <p style={{ fontSize: '0.8rem', color: 'var(--gray-300)', marginTop: '0.5rem', lineHeight: '1.5' }}>
-                                            Complete a course and update your resume to automatically boost your matching score by up to 15% for this role.
+                                            {upskillingData.is_default
+                                                ? "These courses are selected based on your current profile and industry foundational requirements to help you stay ahead."
+                                                : "Complete a course and update your resume to automatically boost your matching score by up to 15% for this role."}
                                         </p>
                                     </div>
                                 </div>
 
                                 {/* Right Side: Recommendations */}
                                 <div className="upskilling-main">
-                                    <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>📚 Recommended Learning Paths</h3>
+                                    <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>
+                                        {upskillingData.is_default ? '🌟 Recommended for Your Profile' : '📚 Recommended Learning Paths'}
+                                    </h3>
                                     <div className="course-grid">
                                         {upskillingData.recommendations.flatMap((rec, recIdx) =>
                                             rec.courses?.map((course, cIdx) => (
@@ -580,6 +675,30 @@ export default function CandidatePortal() {
                                 </div>
                             </div>
 
+                            {/* Resume Selection */}
+                            <div className="app-form-group">
+                                <label className="app-form-label">📄 Attached Resume <span>(Select from your uploads)</span></label>
+                                <select
+                                    className="app-form-input"
+                                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', color: 'white', border: '1px solid var(--border-subtle)' }}
+                                    value={selectedResumeId}
+                                    onChange={e => setSelectedResumeId(e.target.value)}
+                                    required
+                                >
+                                    <option value="" disabled>Choose a resume to attach...</option>
+                                    {resumeHistory.map(r => (
+                                        <option key={r.id} value={r.id} style={{ background: '#1a1a1a' }}>
+                                            {r.file_name} {r.is_active ? ' (Active)' : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                                {resumeHistory.length === 0 && (
+                                    <p style={{ color: 'var(--rose-400)', fontSize: '0.8rem', marginTop: '0.5rem' }}>
+                                        ⚠️ Please upload a resume in the Upload tab first.
+                                    </p>
+                                )}
+                            </div>
+
                             {/* Cover Letter / Why me? */}
                             <div className="app-form-group">
                                 <label className="app-form-label">✍️ Professional Summary <span>(Max 500 chars)</span></label>
@@ -625,6 +744,13 @@ export default function CandidatePortal() {
                     </div>
                 </div>
             )}
+            {/* Resume Viewer Modal */}
+            <ResumeViewer
+                isOpen={!!viewingResume}
+                onClose={() => setViewingResume(null)}
+                resumeUrl={viewingResume?.url}
+                fileName={viewingResume?.file_name}
+            />
         </div>
     );
 }

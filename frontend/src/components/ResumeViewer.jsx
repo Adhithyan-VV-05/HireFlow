@@ -1,0 +1,126 @@
+import React from 'react';
+
+/**
+ * A proper Resume Viewer modal that supports PDF and fallback for other formats.
+ */
+export default function ResumeViewer({ isOpen, onClose, resumeUrl, fileName }) {
+    if (!isOpen) return null;
+
+    const isPdf = fileName?.toLowerCase().endsWith('.pdf');
+
+    return (
+        <div className="modal-overlay resume-viewer-overlay" onClick={onClose} style={{ zIndex: 1100 }}>
+            <div
+                className="modal-content glass-card resume-viewer-content"
+                onClick={e => e.stopPropagation()}
+                style={{
+                    width: '90%',
+                    maxWidth: '1000px',
+                    height: '90vh',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    padding: 0,
+                    overflow: 'hidden',
+                    border: '1px solid rgba(255,255,255,0.1)'
+                }}
+            >
+                <div className="resume-viewer-header" style={{
+                    padding: '1rem 1.5rem',
+                    background: 'rgba(255,255,255,0.05)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    borderBottom: '1px solid rgba(255,255,255,0.1)'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <span style={{ fontSize: '1.5rem' }}>{isPdf ? '📕' : '📄'}</span>
+                        <div>
+                            <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'white' }}>{fileName || 'Resume Document'}</h3>
+                            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--gray-500)' }}>
+                                Secure AI-powered Preview
+                            </p>
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                        <a
+                            href={resumeUrl}
+                            download={fileName}
+                            className="action-btn ghost-btn small-btn"
+                            style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+                        >
+                            ⬇️ Download
+                        </a>
+                        <button
+                            onClick={onClose}
+                            className="close-btn"
+                            style={{
+                                position: 'static',
+                                background: 'rgba(255,255,255,0.1)',
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                        >
+                            ×
+                        </button>
+                    </div>
+                </div>
+
+                <div className="resume-viewer-body" style={{ flex: 1, background: '#1a1a1a', position: 'relative' }}>
+                    {isPdf ? (
+                        <iframe
+                            src={`${resumeUrl}#toolbar=0`}
+                            title="Resume Preview"
+                            width="100%"
+                            height="100%"
+                            style={{ border: 'none' }}
+                        />
+                    ) : (
+                        <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            height: '100%',
+                            color: 'var(--gray-400)',
+                            textAlign: 'center',
+                            padding: '2rem'
+                        }}>
+                            <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>📂</div>
+                            <h3>Preview not available for this format</h3>
+                            <p style={{ maxWidth: '400px' }}>
+                                This file is a DOCX or other format that cannot be previewed directly in the browser safely.
+                                Please download it to view the content.
+                            </p>
+                            <a
+                                href={resumeUrl}
+                                download={fileName}
+                                className="action-btn primary-btn"
+                                style={{ marginTop: '1.5rem', padding: '0.75rem 2rem' }}
+                            >
+                                Download {fileName}
+                            </a>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            <style jsx>{`
+                .resume-viewer-overlay {
+                    background: rgba(0, 0, 0, 0.85);
+                    backdrop-filter: blur(8px);
+                }
+                .resume-viewer-content {
+                    animation: modalPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+                }
+                @keyframes modalPop {
+                    from { transform: scale(0.95); opacity: 0; }
+                    to { transform: scale(1); opacity: 1; }
+                }
+            `}</style>
+        </div>
+    );
+}

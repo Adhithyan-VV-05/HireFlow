@@ -1,16 +1,14 @@
-"""Authentication utilities — JWT tokens, password hashing, FastAPI dependencies."""
-
 from datetime import datetime, timedelta
 from typing import Optional
 
 import bcrypt
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, status, Query
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from app.config import SECRET_KEY, JWT_ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 from app.db.session import get_db
+from fastapi.security import OAuth2PasswordBearer
 
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
@@ -40,12 +38,16 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 def get_current_user(
     token: Optional[str] = Depends(oauth2_scheme),
+    token_param: Optional[str] = Query(None), # Matches ?token_param=...
     db: Session = Depends(get_db),
 ):
-    """FastAPI dependency: extract current user from JWT token."""
+    """FastAPI dependency: extract current user from JWT token (header or query)."""
     from app.db.models import User
 
-    if token is None:
+    # Fallback to query param if header is missing
+    final_token = token or token_param
+
+    if final_token is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
@@ -53,7 +55,7 @@ def get_current_user(
         )
 
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(final_token, SECRET_KEY, algorithms=[JWT_ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
             raise HTTPException(

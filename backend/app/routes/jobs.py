@@ -101,6 +101,7 @@ async def apply_job(
         id=application_id,
         job_id=request.job_id,
         candidate_id=candidate.id,
+        applied_resume_id=request.applied_resume_id,
         additional_details=request.additional_details,
         portfolio_url=request.portfolio_url,
         start_date=request.start_date,
@@ -135,6 +136,8 @@ async def list_job_applications(
                 "portfolio_url": app.portfolio_url,
                 "start_date": app.start_date,
                 "status": app.status,
+                "applied_resume_id": app.applied_resume_id,
+                "applied_resume_name": app.applied_resume.file_name if app.applied_resume else None,
                 "created_at": str(app.created_at),
             }
             for app in applications

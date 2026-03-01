@@ -103,6 +103,40 @@ def _mock_courses(skill: str) -> list[dict]:
     ]
 
 
+def _get_default_recommendations(candidate: Candidate) -> list[dict]:
+    """Generate basic default course suggestions based on candidate's existing skills."""
+    skills = candidate.skills or []
+    
+    # Universal foundational categories everyone should have
+    universal_suggestions = [
+        {"skill": "Professional Communication", "category": "Soft Skills"},
+        {"skill": "Git & GitHub Masterclass", "category": "Tools"},
+        {"skill": "Agile & Scrum Fundamentals", "category": "Workflow"}
+    ]
+    
+    # Pick top 2 existing skills to "level up"
+    level_up_suggestions = []
+    if skills:
+        top_skills = skills[:2]
+        for s in top_skills:
+            level_up_suggestions.append({"skill": f"Advanced {s}", "category": "Level Up"})
+
+    all_target_skills = universal_suggestions + level_up_suggestions
+    recommendations = []
+    
+    for item in all_target_skills:
+        skill_name = item["skill"]
+        # Use mock or LLM to get courses
+        courses = _get_course_suggestions(skill_name, "General Professional Growth")
+        recommendations.append({
+            "skill": skill_name,
+            "category": item["category"],
+            "courses": courses,
+        })
+    
+    return recommendations
+
+
 # ---------------------------------------------------------------------------
 # Route
 # ---------------------------------------------------------------------------
@@ -152,14 +186,16 @@ async def get_upskilling_recommendations(
     ]
 
     if not job_id:
-        # No job selected yet — return data without gap analysis
+        # Generate default recommendations based on current skills
+        recommendations = _get_default_recommendations(candidate)
         return {
             "has_resume": True,
             "candidate_skills": candidate_skills,
             "jobs": jobs_list,
             "selected_job": None,
-            "skill_gaps": [],
-            "recommendations": [],
+            "skill_gaps": [r["skill"] for r in recommendations], # Show these as "Recommended for you"
+            "recommendations": recommendations,
+            "is_default": True
         }
 
     # Find the selected job

@@ -1,6 +1,6 @@
 """Database package — models and session factory."""
 
-from app.db.models import User, Candidate, FaissMetadata, Job, Interview, AptitudeTest
+from app.db.models import User, Candidate, FaissMetadata, Job, Interview, AptitudeTest, JobApplication, Resume
 from app.db.session import SessionLocal, get_db, init_db
 
 __all__ = [
@@ -10,6 +10,8 @@ __all__ = [
     "Job",
     "Interview",
     "AptitudeTest",
+    "JobApplication",
+    "Resume",
     "SessionLocal",
     "get_db",
     "init_db",

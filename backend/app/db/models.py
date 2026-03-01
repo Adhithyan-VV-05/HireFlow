@@ -34,6 +34,7 @@ class Candidate(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", backref="candidate_profiles", foreign_keys=[user_id])
+    resumes = relationship("Resume", back_populates="candidate", cascade="all, delete-orphan")
 
     @property
     def skills(self):
@@ -58,6 +59,19 @@ class Candidate(Base):
     @aptitude_scores.setter
     def aptitude_scores(self, value):
         self.aptitude_scores_json = json.dumps(value)
+
+
+class Resume(Base):
+    __tablename__ = "resumes"
+
+    id = Column(Text, primary_key=True)
+    candidate_id = Column(Text, ForeignKey("candidates.id"), nullable=False)
+    file_name = Column(Text, nullable=False)
+    file_path = Column(Text, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    candidate = relationship("Candidate", back_populates="resumes")
 
 
 class FaissMetadata(Base):
@@ -175,6 +189,7 @@ class JobApplication(Base):
     id = Column(Text, primary_key=True)
     job_id = Column(Text, ForeignKey("jobs.id"), nullable=False)
     candidate_id = Column(Text, ForeignKey("candidates.id"), nullable=False)
+    applied_resume_id = Column(Text, ForeignKey("resumes.id"), nullable=True)
     additional_details = Column(Text, default="")
     portfolio_url = Column(Text, nullable=True)
     start_date = Column(Text, nullable=True)
@@ -183,3 +198,4 @@ class JobApplication(Base):
 
     job = relationship("Job", backref="applications")
     candidate = relationship("Candidate", backref="applications")
+    applied_resume = relationship("Resume")

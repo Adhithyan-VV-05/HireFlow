@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
 import SkillTag from '../components/SkillTag';
 import ScoreBar from '../components/ScoreBar';
+import ResumeViewer from '../components/ResumeViewer';
 
 export default function InterviewerPortal() {
     const { user, logout } = useAuth();
@@ -41,6 +42,9 @@ export default function InterviewerPortal() {
     // Applications state
     const [applications, setApplications] = useState([]);
     const [loadingApps, setLoadingApps] = useState(false);
+
+    // Resume Viewer state
+    const [viewingResume, setViewingResume] = useState(null);
 
     useEffect(() => {
         fetchJobs();
@@ -472,6 +476,13 @@ export default function InterviewerPortal() {
                                             )}
 
                                             <div className="card-footer" style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1.5rem' }}>
+                                                <button className="hub-btn hub-btn-secondary" style={{ padding: '0.75rem 1.5rem' }}
+                                                    onClick={() => setViewingResume({
+                                                        file_name: `${candidate.name}_Resume.pdf`,
+                                                        url: api.getLatestResumeUrl(candidate.candidate_id || candidate.id)
+                                                    })}>
+                                                    👁️ View Resume
+                                                </button>
                                                 <button className="hub-btn hub-btn-primary" style={{ padding: '0.75rem 2rem' }}
                                                     onClick={() => setSchedulingCandidate({ id: candidate.candidate_id, name: candidate.name })}>
                                                     Schedule Video Interview ➔
@@ -503,9 +514,16 @@ export default function InterviewerPortal() {
                                                 </div>
                                             </div>
                                             <div className="candidate-actions">
+                                                <button className="action-btn ghost-btn" style={{ marginRight: '0.5rem' }}
+                                                    onClick={() => setViewingResume({
+                                                        file_name: `${candidate.name}_Resume.pdf`,
+                                                        url: api.getLatestResumeUrl(candidate.id)
+                                                    })}>
+                                                    👁️ Resume
+                                                </button>
                                                 <button className="action-btn primary-btn"
                                                     onClick={() => setSchedulingCandidate(candidate)}>
-                                                    📅 Schedule an Interview
+                                                    📅 Schedule
                                                 </button>
                                             </div>
                                         </div>
@@ -583,9 +601,20 @@ export default function InterviewerPortal() {
                                                 <div className="skill-tags" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                                                     {app.candidate_skills?.map((s, i) => <SkillTag key={i} skill={s} />)}
                                                 </div>
-                                                <button className="action-btn primary-btn" style={{ width: '100%', marginTop: '2rem' }} onClick={() => setSchedulingCandidate({ id: app.candidate_id, name: app.candidate_name })}>
-                                                    📅 Schedule Interview
-                                                </button>
+                                                <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                                    <button className="hub-btn hub-btn-secondary" style={{ width: '100%', border: '1px solid var(--accent-500)', background: 'rgba(99, 102, 241, 0.1)' }}
+                                                        onClick={() => setViewingResume({
+                                                            file_name: app.applied_resume_name || `${app.candidate_name}_Resume.pdf`,
+                                                            url: api.getViewResumeUrl(app.applied_resume_id)
+                                                        })}
+                                                        disabled={!app.applied_resume_id}
+                                                    >
+                                                        📄 {app.applied_resume_name ? `View: ${app.applied_resume_name}` : 'View Attached Resume'}
+                                                    </button>
+                                                    <button className="action-btn primary-btn" style={{ width: '100%' }} onClick={() => setSchedulingCandidate({ id: app.candidate_id, name: app.candidate_name })}>
+                                                        📅 Schedule Interview
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -623,6 +652,14 @@ export default function InterviewerPortal() {
                     </div>
                 </div>
             )}
+
+            {/* Resume Viewer Modal */}
+            <ResumeViewer
+                isOpen={!!viewingResume}
+                onClose={() => setViewingResume(null)}
+                resumeUrl={viewingResume?.url}
+                fileName={viewingResume?.file_name}
+            />
         </div>
     );
 }
