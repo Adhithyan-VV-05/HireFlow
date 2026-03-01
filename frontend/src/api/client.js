@@ -71,6 +71,7 @@ export const api = {
     createJob: (data) => request('/create-job', { method: 'POST', body: JSON.stringify(data) }),
     applyJob: (data) => request('/apply-job', { method: 'POST', body: JSON.stringify(data) }),
     listJobApplications: () => request('/job-applications'),
+    getMyApplications: () => request('/my-applications'),
 
     // Candidates
     listCandidates: () => request('/candidates'),

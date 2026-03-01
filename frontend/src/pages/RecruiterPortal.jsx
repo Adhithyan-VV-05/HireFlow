@@ -7,7 +7,7 @@ import ResumeViewer from '../components/ResumeViewer';
 
 export default function InterviewerPortal() {
     const { user, logout } = useAuth();
-    const [activeTab, setActiveTab] = useState('jobs');
+    const [activeTab, setActiveTab] = useState('dashboard');
 
     // Jobs state
     const [jobs, setJobs] = useState([]);
@@ -187,21 +187,112 @@ export default function InterviewerPortal() {
             </header>
 
             <nav className="portal-tabs">
-                <button className={`tab-btn ${activeTab === 'jobs' ? 'active' : ''}`} onClick={() => setActiveTab('jobs')}>
-                    💼 Jobs
-                </button>
-                <button className={`tab-btn ${activeTab === 'candidates' ? 'active' : ''}`} onClick={() => setActiveTab('candidates')}>
-                    👥 Candidates
-                </button>
-                <button className={`tab-btn ${activeTab === 'interviews' ? 'active' : ''}`} onClick={() => setActiveTab('interviews')}>
-                    🎙️ Interviews
-                </button>
-                <button className={`tab-btn ${activeTab === 'applications' ? 'active' : ''}`} onClick={() => setActiveTab('applications')}>
-                    📥 Applications
-                </button>
+                <button className={`tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>📊 Dashboard</button>
+                <button className={`tab-btn ${activeTab === 'jobs' ? 'active' : ''}`} onClick={() => setActiveTab('jobs')}>💼 Jobs</button>
+                <button className={`tab-btn ${activeTab === 'candidates' ? 'active' : ''}`} onClick={() => setActiveTab('candidates')}>👥 Talent Hub</button>
+                <button className={`tab-btn ${activeTab === 'interviews' ? 'active' : ''}`} onClick={() => setActiveTab('interviews')}>🎙️ Interviews</button>
+                <button className={`tab-btn ${activeTab === 'applications' ? 'active' : ''}`} onClick={() => setActiveTab('applications')}>📥 Inbox</button>
             </nav>
 
             <main className="portal-content">
+                {/* DASHBOARD TAB */}
+                {activeTab === 'dashboard' && (
+                    <div className="portal-section profile-tab-animate">
+                        <div className="profile-hero card glass-card">
+                            <div className="profile-hero-content">
+                                <div className="profile-avatar-large">
+                                    {(user?.name || 'R').charAt(0).toUpperCase()}
+                                    <div className="avatar-pulse"></div>
+                                </div>
+                                <div className="profile-basic-info">
+                                    <h2 className="profile-full-name">Welcome back, {user?.name || 'Recruiter'}</h2>
+                                    <p className="profile-tagline">🚀 Managing {jobs.length} Active Positions • {applications.length} New Applications</p>
+                                    <div className="profile-badges">
+                                        <span className="hub-badge pulse-badge">System Active</span>
+                                        <span className="hub-badge secondary-badge">AI Ranking Enabled</span>
+                                        <span className="hub-badge accent-badge">Premium Recruiter</span>
+                                    </div>
+                                </div>
+                                <div className="profile-quick-actions">
+                                    <button className="hub-btn hub-btn-primary" onClick={() => setActiveTab('jobs')}>
+                                        Post New Job
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="stats-overview-grid">
+                            <div className="card glass-card stat-card-premium">
+                                <div className="stat-card-label">Overall Applications</div>
+                                <div className="stat-card-value">{applications.length}</div>
+                                <div className="stat-card-footer positive">+{applications.filter(a => new Date(a.created_at) > new Date(Date.now() - 86400000)).length} in last 24h</div>
+                            </div>
+                            <div className="card glass-card stat-card-premium">
+                                <div className="stat-card-label">Active Job Roles</div>
+                                <div className="stat-card-value">{jobs.length}</div>
+                                <div className="stat-card-footer">System Optimized</div>
+                            </div>
+                            <div className="card glass-card stat-card-premium">
+                                <div className="stat-card-label">Interviews Scheduled</div>
+                                <div className="stat-card-value">{scheduledInterviews.length}</div>
+                                <div className="stat-card-footer">AI-Scribed sessions</div>
+                            </div>
+                            <div className="card glass-card stat-card-premium">
+                                <div className="stat-card-label">Talent Pool Size</div>
+                                <div className="stat-card-value">{allCandidates.length}</div>
+                                <div className="stat-card-footer positive">Rich Profiles</div>
+                            </div>
+                        </div>
+
+                        <div className="profile-grid" style={{ marginTop: '2rem' }}>
+                            <div className="profile-main-col">
+                                <div className="card glass-card">
+                                    <div className="card-header-fancy">
+                                        <h3>🔥 Trending Candidates</h3>
+                                        <button className=" action-btn ghost-btn small-btn" onClick={() => setActiveTab('candidates')}>View All</button>
+                                    </div>
+                                    <div className="candidate-list-mini">
+                                        {allCandidates.slice(0, 4).map((c, i) => (
+                                            <div key={i} className="mini-candidate-row">
+                                                <div className="mini-avatar">{(c.name || 'U').charAt(0).toUpperCase()}</div>
+                                                <div className="mini-info">
+                                                    <div className="mini-name">{c.name}</div>
+                                                    <div className="mini-email">{c.email}</div>
+                                                </div>
+                                                <div className="mini-skills">
+                                                    {c.skills?.slice(0, 3).map((s, j) => (
+                                                        <span key={j} className="mini-skill-pill">{s}</span>
+                                                    ))}
+                                                </div>
+                                                <button className="action-btn ghost-btn" onClick={() => setActiveTab('candidates')}>Details</button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="profile-side-col">
+                                <div className="card glass-card">
+                                    <div className="card-header-fancy">
+                                        <h3>🔔 System Activity</h3>
+                                    </div>
+                                    <div className="activity-feed">
+                                        {applications.slice(0, 4).map((app, i) => (
+                                            <div key={i} className="activity-item">
+                                                <div className="activity-status-dot" data-status="pending"></div>
+                                                <div className="activity-details">
+                                                    <p className="activity-title">New application for <strong>{app.job_title}</strong></p>
+                                                    <div className="activity-meta">
+                                                        <span className="activity-date">{new Date(app.created_at).toLocaleDateString()}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 {/* INTERVIEWS TAB */}
                 {activeTab === 'interviews' && (
                     <div className="portal-section">
@@ -224,66 +315,54 @@ export default function InterviewerPortal() {
                             </div>
                         )}
 
-                        <div className="cards-grid">
+                        <div className="cards-grid-premium">
                             {scheduledInterviews.map((iv) => (
-                                <div key={iv.id} className="card glass-card">
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-                                        <div>
-                                            <h3 className="card-title" style={{ margin: 0 }}>{iv.candidate_name}</h3>
-                                            <p style={{ fontSize: '0.85rem', color: '#888' }}>
-                                                {iv.is_video_call ? '🎥 Video Interview' : '🎙️ AI Screening'}
-                                            </p>
+                                <div key={iv.id} className="card glass-card interview-hub-card">
+                                    <div className="interview-card-top">
+                                        <div className="candidate-summary">
+                                            <div className="hub-avatar">{(iv.candidate_name || 'U').charAt(0).toUpperCase()}</div>
+                                            <div>
+                                                <h3 className="hub-name">{iv.candidate_name}</h3>
+                                                <p className="hub-subtitle">{iv.is_video_call ? '🎥 Video Protocol' : '🎙️ AI Protocol'}</p>
+                                            </div>
                                         </div>
-                                        <div style={{ textAlign: 'right' }}>
-                                            <span
-                                                className="status-badge"
-                                                style={{
-                                                    background: iv.schedule_status === 'accepted' ? '#10b981' : iv.schedule_status === 'skipped' ? '#ef4444' : '#6366f1',
-                                                    color: 'white',
-                                                    padding: '0.25rem 0.6rem',
-                                                    borderRadius: '8px',
-                                                    fontSize: '0.7rem',
-                                                    textTransform: 'uppercase',
-                                                    fontWeight: '700'
-                                                }}
-                                            >
-                                                {iv.schedule_status || iv.status || 'pending'}
-                                            </span>
+                                        <span className={`status-pill pill-${iv.schedule_status || 'pending'}`}>
+                                            {iv.schedule_status || 'pending'}
+                                        </span>
+                                    </div>
+
+                                    <div className="interview-time-box">
+                                        <div className="time-item">
+                                            <span className="time-icon">📅</span>
+                                            <div>
+                                                <div className="time-label">Date</div>
+                                                <div className="time-val">{iv.scheduled_at ? new Date(iv.scheduled_at).toLocaleDateString() : 'TBD'}</div>
+                                            </div>
+                                        </div>
+                                        <div className="time-item">
+                                            <span className="time-icon">⏰</span>
+                                            <div>
+                                                <div className="time-label">Session Time</div>
+                                                <div className="time-val">{iv.scheduled_at ? new Date(iv.scheduled_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'TBD'}</div>
+                                            </div>
                                         </div>
                                     </div>
 
-                                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: 12, marginBottom: '1.5rem' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
-                                            <span>📅</span> <strong>{iv.scheduled_at ? new Date(iv.scheduled_at).toLocaleDateString() : 'N/A'}</strong>
-                                        </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
-                                            <span>⏰</span> <strong>{iv.scheduled_at ? new Date(iv.scheduled_at).toLocaleTimeString() : 'N/A'}</strong>
-                                        </div>
-                                    </div>
-
-                                    <div style={{ display: 'flex', gap: '1rem' }}>
+                                    <div className="hub-card-footer">
                                         {iv.is_video_call ? (
                                             <button
-                                                className="action-btn primary-btn"
-                                                style={{
-                                                    flex: 1,
-                                                    background: iv.schedule_status === 'accepted' ? '#6366f1' : '#334155',
-                                                    opacity: iv.schedule_status === 'accepted' ? 1 : 0.6,
-                                                    cursor: iv.schedule_status === 'accepted' ? 'pointer' : 'not-allowed'
-                                                }}
+                                                className={`hub-btn ${iv.schedule_status === 'accepted' ? 'hub-btn-primary' : 'hub-btn-disabled'}`}
+                                                style={{ flex: 1 }}
                                                 onClick={() => iv.schedule_status === 'accepted' && window.location.assign(`/video-interview/${iv.id}`)}
                                                 disabled={iv.schedule_status !== 'accepted'}
                                             >
-                                                {iv.schedule_status === 'accepted' ? 'Join Call' : 'Awaiting Confirmation'}
+                                                {iv.schedule_status === 'accepted' ? 'Start Session ➔' : 'Awaiting Confirmation'}
                                             </button>
                                         ) : (
-                                            <button className="action-btn secondary-btn" style={{ flex: 1 }}>
-                                                📈 View AI Transcript
+                                            <button className="hub-btn hub-btn-secondary" style={{ flex: 1 }}>
+                                                View Transcript
                                             </button>
                                         )}
-                                        <button className="action-btn ghost-btn" style={{ padding: '0 1rem' }} onClick={() => alert('Feature coming soon: View detailed analysis')}>
-                                            📋 Result
-                                        </button>
                                     </div>
                                 </div>
                             ))}
@@ -327,29 +406,43 @@ export default function InterviewerPortal() {
                             </form>
                         </div>
 
-                        <div className="cards-grid">
+                        <div className="roles-header-fancy">
+                            <h3>🚀 Active Positions</h3>
+                            <div className="header-meta">Listing {jobs.length} roles</div>
+                        </div>
+                        <div className="cards-grid-premium">
                             {jobs.map(job => (
-                                <div key={job.id} className="card glass-card job-card">
-                                    <h3 className="card-title">{job.title}</h3>
-                                    <p className="card-desc">{job.description?.substring(0, 150)}...</p>
-                                    <div className="skill-tags">
-                                        {job.required_skills?.map((skill, i) => (
+                                <div key={job.id} className="card glass-card premium-role-card">
+                                    <div className="role-card-top">
+                                        <div className="role-icon">💼</div>
+                                        <div className="role-main">
+                                            <h3 className="role-title">{job.title}</h3>
+                                            <p className="role-deadline">Deadline: {job.deadline ? new Date(job.deadline).toLocaleDateString() : 'Flexible'}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="role-stats-mini">
+                                        <div className="mini-stat">
+                                            <span className="stat-num">{applications.filter(a => a.job_id === job.id).length}</span>
+                                            <span className="stat-txt">Apps</span>
+                                        </div>
+                                        <div className="mini-stat">
+                                            <span className="stat-num">AI</span>
+                                            <span className="stat-txt">Ranking</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="skill-tags small-tags">
+                                        {job.required_skills?.slice(0, 4).map((skill, i) => (
                                             <SkillTag key={i} skill={skill} />
                                         ))}
                                     </div>
-                                    <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>
-                                            👤 Posted by: <span style={{ color: 'white' }}>{job.owner_name}</span>
-                                        </div>
-                                        {job.deadline && (
-                                            <div style={{ fontSize: '0.75rem', color: 'var(--rose-400)' }}>
-                                                📅 Deadline: {new Date(job.deadline).toLocaleDateString()}
-                                            </div>
-                                        )}
+
+                                    <div className="role-card-footer">
+                                        <button className="hub-btn hub-btn-primary" style={{ width: '100%' }} onClick={() => searchCandidates(job)}>
+                                            🔍 Match Talent
+                                        </button>
                                     </div>
-                                    <button className="action-btn secondary-btn" style={{ marginTop: '1rem' }} onClick={() => searchCandidates(job)}>
-                                        🔍 Find Candidates
-                                    </button>
                                 </div>
                             ))}
                         </div>

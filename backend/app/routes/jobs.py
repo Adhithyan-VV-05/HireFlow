@@ -143,3 +143,35 @@ async def list_job_applications(
             for app in applications
         ]
     }
+
+
+@router.get("/my-applications")
+async def get_my_applications(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List applications for the current candidate."""
+    if current_user.role != "candidate":
+        raise HTTPException(403, "Only candidates can access their applications")
+        
+    candidate = db.query(Candidate).filter(Candidate.user_id == current_user.id).first()
+    if not candidate:
+        return {"applications": []}
+        
+    applications = db.query(JobApplication).filter(
+        JobApplication.candidate_id == candidate.id
+    ).all()
+    
+    return {
+        "applications": [
+            {
+                "id": app.id,
+                "job_title": app.job.title,
+                "job_id": app.job_id,
+                "status": app.status,
+                "created_at": str(app.created_at),
+                "applied_resume_name": app.applied_resume.file_name if app.applied_resume else "Primary Resume",
+            }
+            for app in applications
+        ]
+    }

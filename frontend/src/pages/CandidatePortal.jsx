@@ -56,11 +56,15 @@ export default function CandidatePortal() {
     // Resume Viewer state
     const [viewingResume, setViewingResume] = useState(null);
 
+    const [myApplications, setMyApplications] = useState([]);
+    const [appsLoading, setAppsLoading] = useState(false);
+
     useEffect(() => {
         loadProfile();
         loadInterviews();
         loadJobs();
         loadResumeHistory();
+        loadMyApplications();
     }, []);
 
     const loadProfile = async () => {
@@ -96,6 +100,15 @@ export default function CandidatePortal() {
             const data = await api.getResumeHistory();
             setResumeHistory(data.resumes || []);
         } catch (err) { console.error(err); }
+    };
+
+    const loadMyApplications = async () => {
+        setAppsLoading(true);
+        try {
+            const data = await api.getMyApplications();
+            setMyApplications(data.applications || []);
+        } catch (err) { console.error(err); }
+        finally { setAppsLoading(false); }
     };
 
     const handleApplyJob = async () => {
@@ -231,39 +244,175 @@ export default function CandidatePortal() {
             <main className="portal-content">
                 {/* PROFILE TAB */}
                 {activeTab === 'profile' && (
-                    <div className="portal-section">
-                        <div className="section-header"><h2>👤 My Profile</h2></div>
-                        {profileLoading ? <p>Loading profile...</p> : !profile ? (
-                            <div className="empty-state">
-                                <p>No resume uploaded. Get started in the Upload tab!</p>
-                            </div>
-                        ) : (
-                            <div className="profile-container">
-                                <div className="card glass-card profile-card">
-                                    <div className="profile-header-info">
-                                        <div className="profile-avatar">{(profile.name || 'U').charAt(0).toUpperCase()}</div>
-                                        <div>
-                                            <h3 className="profile-name">{profile.name}</h3>
-                                            <p className="profile-email">{profile.email}</p>
-                                        </div>
+                    <div className="portal-section profile-tab-animate">
+                        <div className="profile-hero card glass-card">
+                            <div className="profile-hero-content">
+                                <div className="profile-avatar-large">
+                                    {(profile?.name || 'U').charAt(0).toUpperCase()}
+                                    <div className="avatar-pulse"></div>
+                                </div>
+                                <div className="profile-basic-info">
+                                    <h2 className="profile-full-name">{profile?.name || 'Candidate Name'}</h2>
+                                    <p className="profile-tagline">🚀 Professional Candidate • {profile?.email}</p>
+                                    <div className="profile-badges">
+                                        <span className="hub-badge pulse-badge">Verified</span>
+                                        <span className="hub-badge secondary-badge">{resumeHistory.length} Resumes</span>
+                                        <span className="hub-badge accent-badge">{myApplications.length} Applications</span>
                                     </div>
-                                    <div className="profile-section">
-                                        <h4>🎯 Skills</h4>
-                                        <div className="skill-tags">
-                                            {profile.skills?.map((s, i) => <SkillTag key={i} skill={s} />)}
-                                        </div>
-                                    </div>
-                                    {profile.aptitude_scores && (
-                                        <div className="profile-section">
-                                            <h4>📊 Aptitude Scores</h4>
-                                            <div className="scores-grid">
-                                                {Object.entries(profile.aptitude_scores).map(([k, v]) => <ScoreBar key={k} score={v} label={k} />)}
-                                            </div>
-                                        </div>
-                                    )}
+                                </div>
+                                <div className="profile-quick-actions">
+                                    <button className="hub-btn hub-btn-primary" onClick={() => setActiveTab('upload')}>
+                                        Update Resume
+                                    </button>
                                 </div>
                             </div>
-                        )}
+                        </div>
+
+                        <div className="profile-grid">
+                            {/* Left Column: Stats & Skills */}
+                            <div className="profile-main-col">
+                                <div className="card glass-card">
+                                    <div className="card-header-fancy">
+                                        <h3>🎯 Expertise Domains</h3>
+                                        <span className="header-icon">✨</span>
+                                    </div>
+                                    <div className="skill-analysis-container">
+                                        {profile?.skills && profile.skills.length > 0 ? (
+                                            <div className="categorized-skills-grid">
+                                                {Object.entries((() => {
+                                                    const skills = profile.skills;
+                                                    const domains = {
+                                                        'Frontend': ['html', 'css', 'javascript', 'js', 'react', 'angular', 'vue', 'tailwind', 'sass', 'bootstrap', 'webpack', 'babel', 'typescript', 'ts', 'jquery', 'next.js', 'canvas'],
+                                                        'Backend': ['node', 'express', 'python', 'django', 'flask', 'java', 'spring', 'ruby', 'rails', 'php', 'laravel', 'sql', 'mysql', 'postgres', 'mongodb', 'redis', 'graphql', 'rest', 'api', 'go', 'golang', 'c++', 'firebase', 'sqlite'],
+                                                        'Designing': ['figma', 'adobe', 'photoshop', 'illustrator', 'sketch', 'xd', 'ui', 'ux', 'design', 'canva', 'responsive', 'wireframing'],
+                                                        'DevOps & Cloud': ['aws', 'azure', 'gcp', 'docker', 'kubernetes', 'jenkins', 'terraform', 'ci/cd', 'nginx', 'linux', 'unix', 'shell', 'bash', 'deployment', 'serverless'],
+                                                        'Version Control': ['git', 'github', 'gitlab', 'bitbucket', 'svn', 'version control'],
+                                                        'Mobile': ['native', 'flutter', 'swift', 'kotlin', 'android', 'ios', 'ionic'],
+                                                        'Tools & QA': ['jira', 'trello', 'agile', 'scrum', 'kanban', 'jest', 'selenium', 'cypress', 'slack', 'postman', 'swagger'],
+                                                    };
+                                                    const result = {};
+                                                    skills.forEach(skill => {
+                                                        const lowerSkill = skill.toLowerCase();
+                                                        let categorized = false;
+                                                        for (const [domain, keywords] of Object.entries(domains)) {
+                                                            if (keywords.some(k => lowerSkill.includes(k))) {
+                                                                if (!result[domain]) result[domain] = [];
+                                                                result[domain].push(skill);
+                                                                categorized = true; break;
+                                                            }
+                                                        }
+                                                        if (!categorized) {
+                                                            if (!result['Other Expertise']) result['Other Expertise'] = [];
+                                                            result['Other Expertise'].push(skill);
+                                                        }
+                                                    });
+                                                    return result;
+                                                })()).map(([domain, items]) => (
+                                                    <div key={domain} className="skill-domain-group">
+                                                        <h4 className="domain-label">
+                                                            <span className="domain-dot"></span>
+                                                            {domain}
+                                                        </h4>
+                                                        <div className="skill-tags">
+                                                            {items.map((s, i) => (
+                                                                <div key={i} className="skill-tag-enhanced small-pill">
+                                                                    {s}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="empty-mini-state">
+                                                <p>Upload your resume to extract and categorize your skills.</p>
+                                                <button className="hub-btn hub-btn-secondary" onClick={() => setActiveTab('upload')}>Upload Resume</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="card glass-card">
+                                    <div className="card-header-fancy">
+                                        <h3>📊 Performance Analytics</h3>
+                                        <span className="header-icon">📈</span>
+                                    </div>
+                                    <div className="performance-content">
+                                        {profile?.aptitude_scores && Object.keys(profile.aptitude_scores).length > 0 ? (
+                                            <div className="scores-grid-premium">
+                                                {Object.entries(profile.aptitude_scores).map(([k, v]) => (
+                                                    <div key={k} className="score-card-premium">
+                                                        <div className="score-info-header">
+                                                            <span className="score-label">{k}</span>
+                                                            <span className="score-value">{Math.round(v)}%</span>
+                                                        </div>
+                                                        <div className="premium-progress-bg">
+                                                            <div className="premium-progress-fill" style={{ width: `${v}%` }}></div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="empty-mini-state">
+                                                <p>No assessment data yet. Start an AI interview to see your scores!</p>
+                                                <button className="action-btn primary-btn" onClick={() => setActiveTab('interviews')}>Take Assessment</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Right Column: Activity & Summary */}
+                            <div className="profile-side-col">
+                                <div className="card glass-card">
+                                    <div className="card-header-fancy">
+                                        <h3>🕒 Recent Activity</h3>
+                                        <span className="header-icon">🔔</span>
+                                    </div>
+                                    <div className="activity-feed">
+                                        {myApplications.slice(0, 5).map(app => (
+                                            <div key={app.id} className="activity-item">
+                                                <div className="activity-status-dot" data-status={app.status}></div>
+                                                <div className="activity-details">
+                                                    <p className="activity-title">Applied to <strong>{app.job_title}</strong></p>
+                                                    <div className="activity-meta">
+                                                        <span className={`status-pill pill-${app.status}`}>{app.status}</span>
+                                                        <span className="activity-date">{new Date(app.created_at).toLocaleDateString()}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {myApplications.length === 0 && <p className="muted-text">No recent applications.</p>}
+                                    </div>
+                                </div>
+
+                                <div className="card glass-card profile-summary-card">
+                                    <h3 style={{ marginBottom: '1rem', fontSize: '1rem' }}>🏆 Profile Summary</h3>
+                                    <div className="summary-stat-row">
+                                        <span>Interviews Done</span>
+                                        <strong>{scheduledInterviews.filter(i => i.status === 'completed').length}</strong>
+                                    </div>
+                                    <div className="summary-stat-row">
+                                        <span>Highest Score</span>
+                                        <strong>{profile?.aptitude_scores ? Math.max(...Object.values(profile.aptitude_scores), 0) : 0}%</strong>
+                                    </div>
+                                    <div className="summary-stat-row" style={{ alignItems: 'center' }}>
+                                        <span>Active Resume</span>
+                                        <button
+                                            className="action-btn ghost-btn small-btn"
+                                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', borderColor: 'rgba(255,255,255,0.1)' }}
+                                            onClick={() => {
+                                                const active = resumeHistory.find(r => r.is_active);
+                                                if (active) setViewingResume({ id: active.id, file_name: active.file_name, url: api.getViewResumeUrl(active.id) });
+                                                else alert('No active resume found. Please upload one in the Upload tab.');
+                                            }}
+                                        >
+                                            👁️ View Resume
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
 
