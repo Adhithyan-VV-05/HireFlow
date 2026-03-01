@@ -86,6 +86,7 @@ class Job(Base):
     title = Column(Text, default="")
     description = Column(Text, default="")
     required_skills_json = Column(Text, default="[]")
+    deadline = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     owner = relationship("User", backref="jobs", foreign_keys=[owner_id])
@@ -175,6 +176,8 @@ class JobApplication(Base):
     job_id = Column(Text, ForeignKey("jobs.id"), nullable=False)
     candidate_id = Column(Text, ForeignKey("candidates.id"), nullable=False)
     additional_details = Column(Text, default="")
+    portfolio_url = Column(Text, nullable=True)
+    start_date = Column(Text, nullable=True)
     status = Column(Text, default="pending")  # pending, reviewed, accepted, rejected
     created_at = Column(DateTime, default=datetime.utcnow)
 

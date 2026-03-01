@@ -46,6 +46,8 @@ export default function CandidatePortal() {
     // Job application state
     const [applyingJob, setApplyingJob] = useState(null);
     const [additionalDetails, setAdditionalDetails] = useState('');
+    const [portfolioUrl, setPortfolioUrl] = useState('');
+    const [startDate, setStartDate] = useState('');
     const [isApplying, setIsApplying] = useState(false);
 
     useEffect(() => {
@@ -88,11 +90,15 @@ export default function CandidatePortal() {
         try {
             await api.applyJob({
                 job_id: applyingJob.id,
-                additional_details: additionalDetails
+                additional_details: additionalDetails,
+                portfolio_url: portfolioUrl,
+                start_date: startDate
             });
             alert('Application submitted successfully!');
             setApplyingJob(null);
             setAdditionalDetails('');
+            setPortfolioUrl('');
+            setStartDate('');
         } catch (err) {
             alert(err.message || 'Failed to submit application');
         } finally {
@@ -399,14 +405,35 @@ export default function CandidatePortal() {
                 {/* JOBS TAB */}
                 {activeTab === 'jobs' && (
                     <div className="portal-section">
-                        <div className="section-header"><h2>💼 Available Jobs</h2></div>
-                        <div className="job-list-grid">
+                        <div className="section-header">
+                            <div>
+                                <h2>💼 Career Opportunities</h2>
+                                <p className="muted-text">Explore roles tailored to your skills and start your next journey.</p>
+                            </div>
+                        </div>
+                        <div className="job-list-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem', marginTop: '2rem' }}>
                             {allJobs.map(job => (
-                                <div key={job.id} className="card glass-card job-display-card">
-                                    <h3>{job.title}</h3>
-                                    <p>{job.description}</p>
-                                    <div className="skill-tags">{job.required_skills?.map((s, i) => <SkillTag key={i} skill={s} />)}</div>
-                                    <button className="action-btn primary-btn" style={{ marginTop: '1rem', width: '100%' }} onClick={() => setApplyingJob(job)}>Apply</button>
+                                <div key={job.id} className="card glass-card job-display-card" style={{ display: 'flex', flexDirection: 'column', padding: '1.5rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                                        <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>{job.title}</h3>
+                                        <div style={{ textAlign: 'right' }}>
+                                            {job.deadline && (
+                                                <span style={{ fontSize: '0.7rem', color: 'var(--rose-400)', fontWeight: 800, textTransform: 'uppercase', background: 'rgba(244, 63, 94, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid rgba(244, 63, 94, 0.2)' }}>
+                                                    Ends: {new Date(job.deadline).toLocaleDateString()}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <p style={{ fontSize: '0.9rem', color: 'var(--gray-400)', marginBottom: '1.25rem', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                        {job.description}
+                                    </p>
+                                    <div className="skill-tags" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '2rem' }}>
+                                        {job.required_skills?.map((s, i) => <SkillTag key={i} skill={s} />)}
+                                    </div>
+                                    <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '0.8rem', color: 'var(--gray-500)', fontWeight: 500 }}>👤 {job.owner_name || 'HireFlow Team'}</span>
+                                        <button className="action-btn primary-btn small-btn" style={{ padding: '0.5rem 1rem' }} onClick={() => setApplyingJob(job)}>Apply Now</button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -569,11 +596,22 @@ export default function CandidatePortal() {
                             <div className="grid-2-cols">
                                 <div className="app-form-group">
                                     <label className="app-form-label">🔗 Portfolio / LinkedIn</label>
-                                    <input type="url" className="app-form-input" placeholder="https://..." />
+                                    <input
+                                        type="url"
+                                        className="app-form-input"
+                                        placeholder="https://..."
+                                        value={portfolioUrl}
+                                        onChange={e => setPortfolioUrl(e.target.value)}
+                                    />
                                 </div>
                                 <div className="app-form-group">
                                     <label className="app-form-label">📅 Earliest Start Date</label>
-                                    <input type="date" className="app-form-input" />
+                                    <input
+                                        type="date"
+                                        className="app-form-input"
+                                        value={startDate}
+                                        onChange={e => setStartDate(e.target.value)}
+                                    />
                                 </div>
                             </div>
                         </div>

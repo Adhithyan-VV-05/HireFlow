@@ -13,6 +13,7 @@ export default function InterviewerPortal() {
     const [jobTitle, setJobTitle] = useState('');
     const [jobDesc, setJobDesc] = useState('');
     const [jobSkills, setJobSkills] = useState('');
+    const [jobDeadline, setJobDeadline] = useState('');
     const [creatingJob, setCreatingJob] = useState(false);
 
     // Search state
@@ -93,8 +94,13 @@ export default function InterviewerPortal() {
         setCreatingJob(true);
         try {
             const skills = jobSkills.split(',').map(s => s.trim()).filter(Boolean);
-            await api.createJob({ title: jobTitle, description: jobDesc, required_skills: skills });
-            setJobTitle(''); setJobDesc(''); setJobSkills('');
+            await api.createJob({
+                title: jobTitle,
+                description: jobDesc,
+                required_skills: skills,
+                deadline: jobDeadline
+            });
+            setJobTitle(''); setJobDesc(''); setJobSkills(''); setJobDeadline('');
             fetchJobs();
         } catch (err) { alert(err.message); }
         finally { setCreatingJob(false); }
@@ -306,8 +312,13 @@ export default function InterviewerPortal() {
                                     <input className="form-input" placeholder="React, Node.js, TypeScript"
                                         value={jobSkills} onChange={e => setJobSkills(e.target.value)} />
                                 </div>
+                                <div className="form-group">
+                                    <label className="form-label">📅 Application Deadline</label>
+                                    <input type="date" className="form-input"
+                                        value={jobDeadline} onChange={e => setJobDeadline(e.target.value)} />
+                                </div>
                                 <button type="submit" className="action-btn primary-btn" disabled={creatingJob}>
-                                    {creatingJob ? 'Creating...' : '+ Create Job'}
+                                    {creatingJob ? 'Creating...' : '+ Create Job Posting'}
                                 </button>
                             </form>
                         </div>
@@ -322,7 +333,17 @@ export default function InterviewerPortal() {
                                             <SkillTag key={i} skill={skill} />
                                         ))}
                                     </div>
-                                    <button className="action-btn secondary-btn" onClick={() => searchCandidates(job)}>
+                                    <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>
+                                            👤 Posted by: <span style={{ color: 'white' }}>{job.owner_name}</span>
+                                        </div>
+                                        {job.deadline && (
+                                            <div style={{ fontSize: '0.75rem', color: 'var(--rose-400)' }}>
+                                                📅 Deadline: {new Date(job.deadline).toLocaleDateString()}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button className="action-btn secondary-btn" style={{ marginTop: '1rem' }} onClick={() => searchCandidates(job)}>
                                         🔍 Find Candidates
                                     </button>
                                 </div>
@@ -352,31 +373,113 @@ export default function InterviewerPortal() {
 
                         {!searching && searchResults.length > 0 && (
                             <div className="candidate-list">
-                                {searchResults.map((candidate, idx) => (
-                                    <div key={idx} className="card glass-card candidate-card-row">
-                                        <div className="candidate-info">
-                                            <div className="candidate-rank">#{idx + 1}</div>
-                                            <div>
-                                                <h3 className="candidate-name">{candidate.name || candidate.candidate_id}</h3>
-                                                <p className="candidate-email">{candidate.email || ''}</p>
-                                                <div className="match-score-display">
-                                                    <span className="match-percentage">{((candidate.final_score || 0) * 100).toFixed(0)}% Match</span>
-                                                </div>
-                                                <div className="skill-tags" style={{ marginTop: '0.5rem' }}>
-                                                    {candidate.matched_skills?.map((skill, i) => (
-                                                        <SkillTag key={i} skill={skill} className="skill-matched" />
-                                                    ))}
-                                                </div>
-                                            </div>
+                                {fairness && fairness.warnings?.length > 0 && (
+                                    <div className="fairness-box">
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: '#fbbf24', fontWeight: 800, fontSize: '0.9rem' }}>
+                                            <span>⚠️ AI Fairness Notice:</span>
                                         </div>
-                                        <div className="candidate-actions">
-                                            <button className="action-btn primary-btn"
-                                                onClick={() => setSchedulingCandidate({ id: candidate.candidate_id, name: candidate.name })}>
-                                                📅 Schedule an Interview
-                                            </button>
+                                        {fairness.warnings.map((w, i) => (
+                                            <p key={i} style={{ fontSize: '0.85rem', color: 'var(--gray-300)', margin: 0 }}>• {w}</p>
+                                        ))}
+                                        <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--gray-500)', fontStyle: 'italic' }}>
+                                            The ranking algorithm is strictly limited to skill and experience overlap. Protected attributes are excluded from analysis.
                                         </div>
                                     </div>
-                                ))}
+                                )}
+
+                                {searchResults.map((candidate, idx) => {
+                                    const explain = fairness?.explainability?.[idx];
+                                    const rankClass = idx === 0 ? 'match-rank-gold' : idx === 1 ? 'match-rank-silver' : idx === 2 ? 'match-rank-bronze' : '';
+
+                                    return (
+                                        <div key={idx} className="card glass-card match-card-premium">
+                                            <div className={`match-rank-badge ${rankClass}`}>
+                                                {idx + 1}
+                                            </div>
+
+                                            <div className="candidate-header" style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+                                                <div className="candidate-rank" style={{ width: 60, height: 60, fontSize: '1.5rem', background: 'var(--bg-secondary)', borderRadius: 12 }}>
+                                                    {(candidate.name || 'U').charAt(0).toUpperCase()}
+                                                </div>
+                                                <div>
+                                                    <h3 className="candidate-name" style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>{candidate.name}</h3>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                                        <span className="candidate-email" style={{ fontSize: '0.9rem' }}>{candidate.email}</span>
+                                                        <div className="match-score-pill">
+                                                            <span className="match-score-value">{((candidate.final_score || 0) * 100).toFixed(0)}%</span>
+                                                            <span className="match-score-label">Match Score</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {explain && (
+                                                <div className="score-breakdown-details">
+                                                    <div className="breakdown-stat">
+                                                        <label>🔍 Semantic Relevance</label>
+                                                        <span>{((explain.search_relevance || 0) * 100).toFixed(0)}%</span>
+                                                    </div>
+                                                    <div className="breakdown-stat">
+                                                        <label>🛠️ Skill Match</label>
+                                                        <span>{((explain.skill_match_ratio || 0) * 100).toFixed(0)}%</span>
+                                                    </div>
+                                                    <div className="breakdown-stat">
+                                                        <label>🎯 Precision Score</label>
+                                                        <span>{((explain.dense_similarity || explain.keyword_match || 0) * 100).toFixed(0)}%</span>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="skill-gap-analysis">
+                                                <div className="skill-set-group">
+                                                    <h4>✅ Matched Expertise <span>({candidate.matched_skills?.length || 0})</span></h4>
+                                                    <div className="skill-tags">
+                                                        {candidate.matched_skills?.map((skill, i) => (
+                                                            <SkillTag key={i} skill={skill} className="matched-pill" />
+                                                        ))}
+                                                        {(!candidate.matched_skills || candidate.matched_skills.length === 0) && <p className="muted-text" style={{ fontSize: '0.8rem' }}>No direct keyword matches.</p>}
+                                                    </div>
+                                                </div>
+                                                <div className="skill-set-group">
+                                                    <h4>❌ Missing Requirements <span>({candidate.missing_skills?.length || 0})</span></h4>
+                                                    <div className="skill-tags">
+                                                        {candidate.missing_skills?.slice(0, 8).map((skill, i) => (
+                                                            <SkillTag key={i} skill={skill} className="missing-pill" />
+                                                        ))}
+                                                        {(!candidate.missing_skills || candidate.missing_skills.length === 0) && <p style={{ fontSize: '0.8rem', color: 'var(--accent-400)' }}>Perfect skill overlap detected.</p>}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {candidate.aptitude_scores && Object.keys(candidate.aptitude_scores).length > 0 && (
+                                                <div className="aptitude-preview">
+                                                    <div className="aptitude-header">
+                                                        <span>📊 AI Behavioral & Aptitude Assessment</span>
+                                                        <span style={{ color: 'var(--gray-500)', fontSize: '0.75rem' }}>*Scores from technical screenings</span>
+                                                    </div>
+                                                    <div className="aptitude-mini-grid">
+                                                        {Object.entries(candidate.aptitude_scores).map(([label, val]) => {
+                                                            const colorClass = val >= 0.8 ? 'apt-val-high' : val >= 0.6 ? 'apt-val-mid' : 'apt-val-low';
+                                                            return (
+                                                                <div key={label} className="aptitude-mini-item">
+                                                                    <span style={{ color: 'var(--gray-400)' }}>{label}</span>
+                                                                    <span className={colorClass}>{(val * 100).toFixed(0)}%</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="card-footer" style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1.5rem' }}>
+                                                <button className="hub-btn hub-btn-primary" style={{ padding: '0.75rem 2rem' }}
+                                                    onClick={() => setSchedulingCandidate({ id: candidate.candidate_id, name: candidate.name })}>
+                                                    Schedule Video Interview ➔
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
 
@@ -422,30 +525,68 @@ export default function InterviewerPortal() {
                         </div>
 
                         {loadingApps ? (
-                            <p>Loading applications...</p>
+                            <div className="loading-state">
+                                <span className="spinner" style={{ width: 40, height: 40, borderWidth: 3 }} />
+                                <p>Loading job applications...</p>
+                            </div>
+                        ) : applications.length === 0 ? (
+                            <div className="empty-state">
+                                <span className="empty-icon">📥</span>
+                                <p>No applications received yet. Try posting more jobs or refining your requirements.</p>
+                            </div>
                         ) : (
                             <div className="candidate-list">
                                 {applications.map((app) => (
-                                    <div key={app.id} className="card glass-card candidate-card-row" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '1rem' }}>
+                                    <div key={app.id} className="card glass-card candidate-card-row" style={{ flexDirection: 'column', alignItems: 'flex-start', padding: '1.5rem' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '1.25rem' }}>
                                             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                                                <div className="candidate-rank" style={{ background: 'var(--primary-600)' }}>APP</div>
+                                                <div className="candidate-rank" style={{ background: 'var(--primary-600)', borderRadius: '10px' }}>APP</div>
                                                 <div>
                                                     <h3 className="candidate-name" style={{ margin: 0 }}>{app.candidate_name}</h3>
-                                                    <p style={{ fontSize: '0.85rem', color: 'var(--primary-300)', fontWeight: 600 }}>Applying for: {app.job_title}</p>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem' }}>
+                                                        <span style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>{app.candidate_email}</span>
+                                                        <span style={{ color: 'var(--gray-600)' }}>•</span>
+                                                        <span style={{ fontSize: '0.85rem', color: 'var(--accent-400)', fontWeight: 600 }}>{app.job_title}</span>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                        <div style={{ width: '100%', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '10px', marginBottom: '1rem' }}>
-                                            <p style={{ fontSize: '0.9rem', color: '#ccc', whiteSpace: 'pre-wrap' }}>{app.additional_details || "No details provided."}</p>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-                                            <div className="skill-tags">
-                                                {app.candidate_skills?.slice(0, 5).map((s, i) => <SkillTag key={i} skill={s} />)}
+                                            <div style={{ textAlign: 'right', fontSize: '0.75rem', color: 'var(--gray-500)' }}>
+                                                Received: {new Date(app.created_at).toLocaleDateString()}
                                             </div>
-                                            <button className="action-btn primary-btn small-btn" onClick={() => setSchedulingCandidate({ id: app.candidate_id, name: app.candidate_name })}>
-                                                📅 Schedule an Interview
-                                            </button>
+                                        </div>
+
+                                        <div className="app-review-container" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem', width: '100%' }}>
+                                            <div className="app-summary-section">
+                                                <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--gray-500)', marginBottom: '0.75rem' }}>📝 Professional Summary</h4>
+                                                <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                    <p style={{ fontSize: '0.9rem', color: '#ccc', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{app.additional_details || "Self-applied through portal."}</p>
+                                                </div>
+
+                                                <div style={{ marginTop: '1.25rem' }}>
+                                                    <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--gray-500)', marginBottom: '0.75rem' }}>🔗 Links & Availability</h4>
+                                                    <div style={{ display: 'flex', gap: '1rem' }}>
+                                                        {app.portfolio_url && (
+                                                            <a href={app.portfolio_url} target="_blank" rel="noreferrer"
+                                                                style={{ fontSize: '0.85rem', color: 'var(--primary-400)', textDecoration: 'none', background: 'rgba(99, 102, 241, 0.1)', padding: '0.4rem 0.8rem', borderRadius: '6px', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+                                                                🌐 Portfolio / LinkedIn ➔
+                                                            </a>
+                                                        )}
+                                                        <div style={{ fontSize: '0.85rem', color: 'var(--accent-400)', background: 'rgba(16, 185, 129, 0.1)', padding: '0.4rem 0.8rem', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                                                            🕒 Avail: {app.start_date || 'Immediate'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="app-skills-section">
+                                                <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--gray-500)', marginBottom: '0.75rem' }}>🛠️ Matched Skills</h4>
+                                                <div className="skill-tags" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                                    {app.candidate_skills?.map((s, i) => <SkillTag key={i} skill={s} />)}
+                                                </div>
+                                                <button className="action-btn primary-btn" style={{ width: '100%', marginTop: '2rem' }} onClick={() => setSchedulingCandidate({ id: app.candidate_id, name: app.candidate_name })}>
+                                                    📅 Schedule Interview
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}

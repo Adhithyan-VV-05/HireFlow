@@ -23,12 +23,20 @@ async def create_job(
 ):
     """Create a new job posting. Interviewer only."""
     job_id = str(uuid.uuid4())
+    deadline_dt = None
+    if request.deadline:
+        try:
+            deadline_dt = datetime.fromisoformat(request.deadline.replace("Z", "+00:00"))
+        except:
+            pass
+
     job = Job(
         id=job_id,
         owner_id=current_user.id,
         title=request.title,
         description=request.description,
         required_skills_json=json.dumps(request.required_skills),
+        deadline=deadline_dt,
         created_at=datetime.utcnow(),
     )
     db.add(job)
@@ -56,6 +64,8 @@ async def list_jobs(
                 "title": j.title,
                 "description": j.description,
                 "required_skills": j.required_skills,
+                "owner_name": j.owner.name if j.owner else "HireFlow AI",
+                "deadline": str(j.deadline) if j.deadline else None,
                 "created_at": str(j.created_at),
             }
             for j in jobs
@@ -92,6 +102,8 @@ async def apply_job(
         job_id=request.job_id,
         candidate_id=candidate.id,
         additional_details=request.additional_details,
+        portfolio_url=request.portfolio_url,
+        start_date=request.start_date,
         created_at=datetime.utcnow(),
     )
     db.add(new_app)
@@ -120,6 +132,8 @@ async def list_job_applications(
                 "candidate_email": app.candidate.email,
                 "candidate_skills": app.candidate.skills,
                 "additional_details": app.additional_details,
+                "portfolio_url": app.portfolio_url,
+                "start_date": app.start_date,
                 "status": app.status,
                 "created_at": str(app.created_at),
             }

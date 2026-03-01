@@ -51,7 +51,8 @@ class InterviewMessageRequest(BaseModel):
 class CreateJobRequest(BaseModel):
     title: str
     description: str
-    required_skills: list = []
+    required_skills: List[str] = []
+    deadline: Optional[str] = None
 
 
 class ScheduleInterviewRequest(BaseModel):
@@ -64,3 +65,5 @@ class ScheduleInterviewRequest(BaseModel):
 class ApplyJobRequest(BaseModel):
     job_id: str
     additional_details: str = ""
+    portfolio_url: Optional[str] = None
+    start_date: Optional[str] = None

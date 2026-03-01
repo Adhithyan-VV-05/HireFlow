@@ -6,10 +6,10 @@ const variants = {
     warm: 'skill-tag-warm',
 };
 
-export default function SkillTag({ skill, variant = 'default', onClick }) {
+export default function SkillTag({ skill, variant = 'default', onClick, className = '' }) {
     return (
         <span
-            className={`skill-tag ${variants[variant] || variants.default}`}
+            className={`skill-tag ${variants[variant] || variants.default} ${className}`}
             onClick={onClick}
             style={onClick ? { cursor: 'pointer' } : {}}
         >

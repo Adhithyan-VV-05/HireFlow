@@ -17,13 +17,14 @@ app = FastAPI(
     version="2.0.0",
 )
 
-# CORS
+# Advanced CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
+    allow_origins=["*"],  # For dev, all origins. If credentials needed, replace with list.
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Register routers

@@ -3947,6 +3947,7 @@ body::before {
   justify-content: flex-end;
   gap: 1rem;
 }
+
 /* -- Enhanced Recruiter Layouts ------------------------------- */
 
 .recruiter-pill {
@@ -4071,3 +4072,208 @@ body::before {
   background: rgba(99, 102, 241, 0.1);
 }
 
+/* ── Match Results & Candidate Ranking ──────────────────────── */
+
+.match-score-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  padding: 0.6rem 1.25rem;
+  border-radius: var(--radius-full);
+}
+
+.match-score-value {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: var(--primary-400);
+}
+
+.match-score-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--gray-400);
+}
+
+.match-card-premium {
+  padding: 2.5rem !important;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  overflow: hidden;
+  position: relative;
+}
+
+.match-card-premium::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary-500), var(--accent-500));
+  opacity: 0.5;
+}
+
+.match-card-premium:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 15px 40px -10px rgba(0, 0, 0, 0.6), 0 0 20px rgba(99, 102, 241, 0.1);
+}
+
+.score-breakdown-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  padding: 1.25rem;
+  background: rgba(2, 6, 23, 0.3);
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  margin: 1.5rem 0;
+}
+
+.breakdown-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.breakdown-stat label {
+  font-size: 0.7rem;
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+
+.breakdown-stat span {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--gray-200);
+}
+
+.skill-gap-analysis {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-top: 1rem;
+}
+
+.skill-set-group h4 {
+  font-size: 0.85rem;
+  color: var(--gray-500);
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.skill-set-group h4 span {
+  opacity: 0.8;
+}
+
+.matched-pill {
+  background: rgba(16, 185, 129, 0.1) !important;
+  color: var(--accent-400) !important;
+  border-color: rgba(16, 185, 129, 0.2) !important;
+}
+
+.missing-pill {
+  background: rgba(244, 63, 94, 0.05) !important;
+  color: var(--rose-400) !important;
+  border-color: rgba(244, 63, 94, 0.1) !important;
+  text-decoration: line-through;
+}
+
+.aptitude-preview {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.aptitude-header {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--gray-400);
+  margin-bottom: 1.25rem;
+  display: flex;
+  justify-content: space-between;
+}
+
+.aptitude-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.aptitude-mini-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.85rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius-lg);
+  font-size: 0.8rem;
+}
+
+.apt-val-high {
+  color: var(--accent-400);
+  font-weight: 800;
+}
+
+.apt-val-mid {
+  color: #facc15;
+  font-weight: 800;
+}
+
+.apt-val-low {
+  color: var(--rose-400);
+  font-weight: 800;
+}
+
+.match-rank-badge {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  border: 2px solid var(--primary-500);
+  border-radius: var(--radius-full);
+  font-size: 1.1rem;
+  font-weight: 900;
+  color: white;
+  box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
+}
+
+.match-rank-gold {
+  border-color: #fbbf24;
+  color: #fbbf24;
+}
+
+.match-rank-silver {
+  border-color: #94a3b8;
+  color: #94a3b8;
+}
+
+.match-rank-bronze {
+  border-color: #d97706;
+  color: #d97706;
+}
+
+.fairness-box {
+  background: rgba(16, 185, 129, 0.05);
+  border: 1px solid rgba(16, 185, 129, 0.1);
+  border-radius: var(--radius-xl);
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
