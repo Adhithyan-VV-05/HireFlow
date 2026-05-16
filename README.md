@@ -104,4 +104,4 @@ Navigate to `http://localhost:5173` to see the portal.
 Distributed under the MIT License. See `LICENSE` for more information.
 
 ---
-Designed with ❤️ for the future of hiring.
+Designed for the future of hiring.
