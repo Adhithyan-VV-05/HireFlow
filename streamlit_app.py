@@ -120,9 +120,38 @@ def get_connection():
     return sqlite3.connect(DB_PATH)
 
 
+def ensure_database_initialized():
+    """Ensure database has tables and sample candidate/job data for Streamlit Cloud."""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='candidates'")
+        has_table = cursor.fetchone()[0] > 0
+        cand_count = 0
+        if has_table:
+            cursor.execute("SELECT count(*) FROM candidates")
+            cand_count = cursor.fetchone()[0]
+        conn.close()
+
+        if not has_table or cand_count == 0:
+            import sys
+            backend_dir = os.path.join(os.path.dirname(__file__), "backend")
+            if backend_dir not in sys.path:
+                sys.path.insert(0, backend_dir)
+            from app.db.session import init_db
+            init_db()
+            from seed_db import seed
+            seed()
+            from seed_milestone4 import seed_m4
+            seed_m4()
+    except Exception as e:
+        pass
+
+
 @st.cache_data(ttl=15)
 def load_all_data():
     """Load and parse core models from SQLite into structured DataFrames."""
+    ensure_database_initialized()
     conn = get_connection()
     try:
         candidates_df = pd.read_sql_query("SELECT * FROM candidates", conn)
