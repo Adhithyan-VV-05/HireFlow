@@ -113,11 +113,21 @@ st.markdown("""
 DB_PATH = os.path.join(os.path.dirname(__file__), "backend", "hireflow.db")
 
 def get_connection():
-    """Connect to SQLite database."""
-    if not os.path.exists(DB_PATH):
-        # Fallback to local relative
-        return sqlite3.connect("hireflow.db")
-    return sqlite3.connect(DB_PATH)
+    """Connect to SQLite database with multi-path resolution."""
+    candidates = [
+        os.path.join(os.path.dirname(__file__), "backend", "hireflow.db"),
+        os.path.join(os.path.dirname(__file__), "hireflow.db"),
+        os.path.abspath("backend/hireflow.db"),
+        os.path.abspath("hireflow.db")
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            return sqlite3.connect(p)
+    # Default path
+    backend_dir = os.path.join(os.path.dirname(__file__), "backend")
+    if os.path.exists(backend_dir):
+        return sqlite3.connect(os.path.join(backend_dir, "hireflow.db"))
+    return sqlite3.connect(os.path.join(os.path.dirname(__file__), "hireflow.db"))
 
 
 def ensure_database_initialized():
@@ -126,53 +136,67 @@ def ensure_database_initialized():
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT count(*) FROM sqlite_master WHERE type='table' AND name='candidates'")
-        has_table = cursor.fetchone()[0] > 0
+        has_table = (cursor.fetchone() or [0])[0] > 0
         cand_count = 0
         if has_table:
             cursor.execute("SELECT count(*) FROM candidates")
-            cand_count = cursor.fetchone()[0]
-        conn.close()
+            cand_count = (cursor.fetchone() or [0])[0]
 
         if not has_table or cand_count == 0:
-            import sys
-            backend_dir = os.path.join(os.path.dirname(__file__), "backend")
-            if backend_dir not in sys.path:
-                sys.path.insert(0, backend_dir)
-            from app.db.session import init_db
-            init_db()
-            from seed_db import seed
-            seed()
-            from seed_milestone4 import seed_m4
-            seed_m4()
-    except Exception as e:
+            # Look for seed_data.sql across deployment locations
+            seed_candidates = [
+                os.path.join(os.path.dirname(__file__), "backend", "seed_data.sql"),
+                os.path.join(os.path.dirname(__file__), "seed_data.sql"),
+                os.path.abspath("seed_data.sql"),
+                os.path.abspath("backend/seed_data.sql"),
+            ]
+            for sql_path in seed_candidates:
+                if os.path.exists(sql_path):
+                    with open(sql_path, "r", encoding="utf-8") as f:
+                        cursor.executescript(f.read())
+                    conn.commit()
+                    break
+        conn.close()
+    except Exception:
         pass
 
 
 @st.cache_data(ttl=15)
 def load_all_data():
-    """Load and parse core models from SQLite into structured DataFrames."""
+    """Load and parse core models from SQLite into structured DataFrames with safe fallbacks."""
     ensure_database_initialized()
     conn = get_connection()
     try:
-        candidates_df = pd.read_sql_query("SELECT * FROM candidates", conn)
-        jobs_df = pd.read_sql_query("SELECT * FROM jobs", conn)
-        applications_df = pd.read_sql_query("SELECT * FROM job_applications", conn)
-        
+        try:
+            candidates_df = pd.read_sql_query("SELECT * FROM candidates", conn)
+        except Exception:
+            candidates_df = pd.DataFrame()
+
+        try:
+            jobs_df = pd.read_sql_query("SELECT * FROM jobs", conn)
+        except Exception:
+            jobs_df = pd.DataFrame()
+
+        try:
+            applications_df = pd.read_sql_query("SELECT * FROM job_applications", conn)
+        except Exception:
+            applications_df = pd.DataFrame()
+
         try:
             interviews_df = pd.read_sql_query("SELECT * FROM interviews", conn)
         except Exception:
             interviews_df = pd.DataFrame()
-            
+
         try:
             simulations_df = pd.read_sql_query("SELECT * FROM interview_sessions", conn)
         except Exception:
             simulations_df = pd.DataFrame()
-            
+
         try:
             voice_screenings_df = pd.read_sql_query("SELECT * FROM voice_screening_sessions", conn)
         except Exception:
             voice_screenings_df = pd.DataFrame()
-            
+
         try:
             history_df = pd.read_sql_query("SELECT * FROM candidate_status_history ORDER BY created_at DESC", conn)
         except Exception:
@@ -183,7 +207,19 @@ def load_all_data():
         except Exception:
             feedbacks_df = pd.DataFrame()
 
-        return {
+        # Guarantee standard columns exist so subsequent UI code never throws KeyError
+        default_cols = {
+            "candidates": ["id", "name", "email", "phone", "headline", "current_status", "skills_json", "experience_years", "resume_score", "screening_score", "screening_summary", "screening_recommendation", "aptitude_scores_json", "created_at", "hired_at"],
+            "jobs": ["id", "title", "department", "location", "experience_required", "status", "skills_json", "created_at"],
+            "applications": ["id", "candidate_id", "job_id", "status", "match_score", "created_at"],
+            "interviews": ["id", "candidate_id", "job_id", "status", "overall_score", "created_at"],
+            "simulations": ["id", "candidate_id", "job_id", "role_type", "difficulty", "status", "average_score", "duration_seconds", "created_at"],
+            "voice_screenings": ["id", "candidate_id", "job_id", "status", "overall_score", "recommendation", "clarity_score", "relevance_score", "technical_depth_score", "problem_solving_score", "communication_score", "created_at"],
+            "history": ["id", "candidate_id", "old_status", "new_status", "notes", "changed_by", "created_at"],
+            "feedbacks": ["id", "rating", "feedback_type", "comments", "created_at"]
+        }
+
+        dfs = {
             "candidates": candidates_df,
             "jobs": jobs_df,
             "applications": applications_df,
@@ -193,6 +229,15 @@ def load_all_data():
             "history": history_df,
             "feedbacks": feedbacks_df
         }
+
+        for key, expected_cols in default_cols.items():
+            df = dfs[key]
+            for col in expected_cols:
+                if col not in df.columns:
+                    df[col] = None
+            dfs[key] = df
+
+        return dfs
     finally:
         conn.close()
 
