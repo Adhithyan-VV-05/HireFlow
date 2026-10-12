@@ -42,28 +42,30 @@ async def assistant_chat(
                 if not cand_id:
                     continue
                 
-                # RESTRICTION: A candidate can only see their own data
-                if is_candidate and cand_id != current_user.id:
-                    continue
-                
                 candidate = db.query(Candidate).filter(Candidate.id == cand_id).first()
-                if candidate:
-                    skills_str = ", ".join(candidate.skills) if candidate.skills else "No skills listed"
-                    raw_text = candidate.raw_text or ""
-                    
-                    if is_candidate:
-                        context_parts.append(
-                            f"MY PROFILE INFORMATION:\n"
-                            f"Name: {candidate.name}\n"
-                            f"My Skills: {skills_str}\n"
-                            f"My Resume Content: {raw_text[:2000]}\n"
-                        )
-                    else:
-                        context_parts.append(
-                            f"Candidate Name: {candidate.name}\n"
-                            f"Skills: {skills_str}\n"
-                            f"Resume Excerpt: {raw_text[:1500]}\n"
-                        )
+                if not candidate:
+                    continue
+
+                # RESTRICTION: A candidate can only see their own data
+                if is_candidate and candidate.user_id != current_user.id:
+                    continue
+
+                skills_str = ", ".join(candidate.skills) if candidate.skills else "No skills listed"
+                raw_text = candidate.raw_text or ""
+                
+                if is_candidate:
+                    context_parts.append(
+                        f"MY PROFILE INFORMATION:\n"
+                        f"Name: {candidate.name}\n"
+                        f"My Skills: {skills_str}\n"
+                        f"My Resume Content: {raw_text[:2000]}\n"
+                    )
+                else:
+                    context_parts.append(
+                        f"Candidate Name: {candidate.name}\n"
+                        f"Skills: {skills_str}\n"
+                        f"Resume Excerpt: {raw_text[:1500]}\n"
+                    )
         
         # Add upskilling context for candidates
         if is_candidate:

@@ -1,9 +1,131 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
 import SkillTag from '../components/SkillTag';
 import ScoreBar from '../components/ScoreBar';
 import ResumeViewer from '../components/ResumeViewer';
+import QuestionGeneratorModal from '../components/QuestionGeneratorModal';
+import InterviewReportModal from '../components/InterviewReportModal';
+import CandidateStatusHistoryModal from '../components/CandidateStatusHistoryModal';
+import LiveInterviewMonitorModal from '../components/LiveInterviewMonitorModal';
+import AtsMatchModal from '../components/AtsMatchModal';
+import Milestone4Dashboard from '../components/Milestone4Dashboard';
+import { useVoiceInput } from '../hooks/useVoiceInput';
+import VoiceInputButton from '../components/ui/VoiceInputButton';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
+
+const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6', '#14b8a6', '#f43f5e'];
+
+const downloadReportFile = (filename, content) => {
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+};
+
+const downloadCandidateReport = (candidate, selectedJob = null) => {
+    const dateStr = new Date().toLocaleString();
+    const jobTitle = selectedJob ? selectedJob.title : 'General Talent Pool Ranking';
+
+    let matchedSkills = candidate.matched_skills || [];
+    let missingSkills = candidate.missing_skills || [];
+
+    if ((!candidate.matched_skills || candidate.matched_skills.length === 0) && selectedJob && selectedJob.required_skills) {
+        const reqSkills = selectedJob.required_skills || [];
+        const candSkills = (candidate.skills || []).map(s => s.toLowerCase());
+        const candSet = new Set(candSkills);
+
+        matchedSkills = reqSkills.filter(s => candSet.has(s.toLowerCase()));
+        missingSkills = reqSkills.filter(s => !candSet.has(s.toLowerCase()));
+    }
+
+    const hiringScore = candidate.hiring_score || ((candidate.final_score || 0) * 100).toFixed(0);
+    const recommendation = candidate.hiring_recommendation || (candidate.has_attended_test ? 'Test Verified Candidate' : 'Resume Evaluated Candidate');
+    const resumeMatch = candidate.resume_match_score || ((candidate.skill_match_ratio || 0) * 100).toFixed(0);
+    const testMatch = candidate.has_attended_test ? `${candidate.test_match_score}%` : 'Not Attended (Match score 100% strictly from Resume Evaluation)';
+    const roleRankStr = candidate.role_rank ? `#${candidate.role_rank} (of ${candidate.total_candidates_evaluated || 'Pool'})` : (candidate.global_rank ? `#${candidate.global_rank} (Global Pool)` : 'Ranked Candidate');
+
+    let testScoresText = 'No verified skill tests conducted yet.';
+    if (candidate.skill_scores && Object.keys(candidate.skill_scores).length > 0) {
+        testScoresText = Object.entries(candidate.skill_scores)
+            .map(([s, val]) => `  - ${s}: ${val.toFixed(0)}%`)
+            .join('\n');
+    }
+
+    const matchedSkillsText = matchedSkills.length > 0
+        ? matchedSkills.join(', ')
+        : 'None directly matched';
+
+    const missingSkillsText = missingSkills.length > 0
+        ? missingSkills.join(', ')
+        : (selectedJob ? 'None (Perfect skill overlap - 100% requirements met)' : 'N/A (Select a target job role for missing skill gap analysis)');
+
+    const allSkillsText = (candidate.skills && candidate.skills.length > 0)
+        ? candidate.skills.join(', ')
+        : 'None extracted';
+
+    const location = candidate.entities?.LOCATION || 'Not Specified';
+    const orgs = candidate.entities?.ORGANIZATION ? (Array.isArray(candidate.entities.ORGANIZATION) ? candidate.entities.ORGANIZATION.join(', ') : candidate.entities.ORGANIZATION) : 'N/A';
+    const designation = candidate.entities?.DESIGNATION || 'N/A';
+
+    const report = `================================================================================
+                    HIREFLOW AI - CANDIDATE EVALUATION & MATCH REPORT
+================================================================================
+Generated On        : ${dateStr}
+Candidate Name      : ${candidate.name || 'Candidate'}
+Email Address       : ${candidate.email || 'N/A'}
+Location            : ${location}
+Verification Status : ${candidate.is_verified ? '✓ Verified (Passed Skill Assessments)' : 'Unverified (Resume Evaluation Only)'}
+
+--------------------------------------------------------------------------------
+1. JOB MATCHING & RANKING SCHEME
+--------------------------------------------------------------------------------
+Target Job Role      : ${jobTitle}
+Candidate Role Rank  : ${roleRankStr}
+🎯 Overall Hiring Score: ${hiringScore}%
+Hiring Recommendation: ${recommendation}
+
+Ranking & Scoring Formula:
+- Resume-to-JD Overlap Score : ${resumeMatch}%
+- Verified Skill Test Score  : ${testMatch}
+- Transparent Formula Used   : ${candidate.has_attended_test ? '60% Resume-JD Overlap + 40% Real Skill Test Score' : '100% Strict Resume-JD Overlap & Semantic Vector Match'}
+
+--------------------------------------------------------------------------------
+2. SKILLS & GAP ANALYSIS
+--------------------------------------------------------------------------------
+Matched Expertise (Recruiter Required Skills Present in Resume) [Count: ${matchedSkills.length}]:
+  ${matchedSkillsText}
+
+Missing Requirements (Recruiter Required Skills Missing in Resume / Skill Gap) [Count: ${missingSkills.length}]:
+  ${missingSkillsText}
+
+All Candidate Skills Extracted from Resume [Count: ${candidate.skills?.length || 0}]:
+  ${allSkillsText}
+
+--------------------------------------------------------------------------------
+3. VERIFIED SKILL TEST RESULTS (REAL ASSESSMENT PERFORMANCE)
+--------------------------------------------------------------------------------
+${testScoresText}
+
+--------------------------------------------------------------------------------
+4. RESUME ENTITIES & EXTRACTED DETAILS
+--------------------------------------------------------------------------------
+Location            : ${location}
+Organizations       : ${orgs}
+Designation / Role  : ${designation}
+
+================================================================================
+                    CONFIDENTIAL - FOR HIRING TEAM USE ONLY
+================================================================================`;
+
+    const fileName = `HireFlow_Candidate_Report_${(candidate.name || 'Candidate').replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
+    downloadReportFile(fileName, report);
+};
 
 export default function InterviewerPortal() {
     const { user, logout } = useAuth();
@@ -26,6 +148,19 @@ export default function InterviewerPortal() {
     // Global Candidate State
     const [allCandidates, setAllCandidates] = useState([]);
     const [allCandidatesLoading, setAllCandidatesLoading] = useState(false);
+    const [candidateSearchQuery, setCandidateSearchQuery] = useState('');
+
+    // SpeechRecognition hook for candidate search
+    const {
+        isListening: isSearchListening,
+        audioLevel: searchAudioLevel,
+        isSupported: searchVoiceSupported,
+        recognitionEngine: searchRecognitionEngine,
+        toggleListening: toggleSearchVoice,
+        resetTranscript: resetSearchTranscript
+    } = useVoiceInput({
+        onTranscriptChange: (text) => setCandidateSearchQuery(text)
+    });
 
     // Scheduling state
     const [schedulingCandidate, setSchedulingCandidate] = useState(null);
@@ -46,6 +181,133 @@ export default function InterviewerPortal() {
     // Resume Viewer state
     const [viewingResume, setViewingResume] = useState(null);
 
+    // Milestone 3: ATS Stage Filter & Modals
+    const [atsStageFilter, setAtsStageFilter] = useState('All');
+    const [questionGenModal, setQuestionGenModal] = useState(null);
+    const [reportModalData, setReportModalData] = useState(null);
+    const [historyModalCandidate, setHistoryModalCandidate] = useState(null);
+    const [liveMonitorModal, setLiveMonitorModal] = useState(null);
+    const [atsMatchModal, setAtsMatchModal] = useState(null);
+    const [atsMatchLoading, setAtsMatchLoading] = useState(false);
+
+    const handleViewAtsMatch = async (candidate) => {
+        const cid = candidate.candidate_id || candidate.id;
+        const jid = selectedJob?.id || (jobs.length > 0 ? jobs[0].id : null);
+        if (!jid) {
+            alert('Please create or select a Job Posting first to match candidate against.');
+            return;
+        }
+        setAtsMatchLoading(true);
+        try {
+            const matchData = await api.getAtsMatch(cid, jid);
+            setAtsMatchModal({
+                candidate,
+                jobTitle: selectedJob?.title || jobs[0]?.title,
+                matchData
+            });
+        } catch (err) {
+            alert(err.message || 'Failed to calculate Hugging Face ATS match.');
+        } finally {
+            setAtsMatchLoading(false);
+        }
+    };
+
+    const handleUpdateCandidateStage = async (candidateId, newStatus) => {
+        try {
+            await api.updateAtsCandidateStatus(candidateId, {
+                status: newStatus,
+                notes: `Stage updated to ${newStatus} by ${user?.name || 'Recruiter'}`
+            });
+            setAllCandidates(prev => prev.map(c => (c.id === candidateId || c.candidate_id === candidateId) ? { ...c, current_status: newStatus } : c));
+        } catch (err) {
+            alert(err.message || 'Failed to update candidate status');
+        }
+    };
+
+    const handleViewInterviewReport = async (candidate) => {
+        const cid = candidate.candidate_id || candidate.id;
+        try {
+            const data = await api.getCandidateSimulations(cid);
+            if (data.simulations && data.simulations.length > 0) {
+                const latest = data.simulations[0];
+                const fullReport = await api.getSimulationReport(latest.session_id);
+                setReportModalData(fullReport);
+            } else {
+                alert(`No AI interview simulations found for ${candidate.name || 'this candidate'} yet.`);
+            }
+        } catch (err) {
+            alert(err.message || 'Error fetching interview simulation report');
+        }
+    };
+
+    const analyticsData = useMemo(() => {
+        if (!allCandidates || allCandidates.length === 0) {
+            return { topSkills: [], domainCounts: [], verificationStats: [], totalSkillsCount: 0, verifiedCount: 0 };
+        }
+
+        const skillMap = {};
+        let totalSkillsCount = 0;
+        const domainMap = {
+            'Frontend': 0,
+            'Backend & DB': 0,
+            'AI / ML / Data': 0,
+            'DevOps & Cloud': 0,
+            'Mobile & UI': 0,
+            'Tools & QA': 0
+        };
+
+        let verifiedCount = 0;
+        let unverifiedCount = 0;
+
+        allCandidates.forEach(candidate => {
+            if (candidate.is_verified || (candidate.skill_scores && Object.keys(candidate.skill_scores).length > 0)) {
+                verifiedCount++;
+            } else {
+                unverifiedCount++;
+            }
+
+            const skills = candidate.skills || [];
+            totalSkillsCount += skills.length;
+
+            skills.forEach(s => {
+                const cleanSkill = s.trim();
+                if (!cleanSkill) return;
+                skillMap[cleanSkill] = (skillMap[cleanSkill] || 0) + 1;
+
+                const lower = cleanSkill.toLowerCase();
+                if (['html', 'css', 'javascript', 'react', 'angular', 'vue', 'tailwind', 'typescript', 'next.js'].some(k => lower.includes(k))) {
+                    domainMap['Frontend']++;
+                } else if (['python', 'node', 'express', 'sql', 'mysql', 'postgres', 'mongodb', 'java', 'c++', 'php', 'api'].some(k => lower.includes(k))) {
+                    domainMap['Backend & DB']++;
+                } else if (['machine learning', 'deep learning', 'nlp', 'computer vision', 'data science', 'ai', 'tensorflow', 'pytorch'].some(k => lower.includes(k))) {
+                    domainMap['AI / ML / Data']++;
+                } else if (['aws', 'docker', 'kubernetes', 'cloud', 'devops', 'linux', 'ci/cd', 'firebase', 'azure'].some(k => lower.includes(k))) {
+                    domainMap['DevOps & Cloud']++;
+                } else if (['figma', 'flutter', 'react native', 'ios', 'android', 'ui', 'ux', 'canva'].some(k => lower.includes(k))) {
+                    domainMap['Mobile & UI']++;
+                } else {
+                    domainMap['Tools & QA']++;
+                }
+            });
+        });
+
+        const topSkills = Object.entries(skillMap)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 8)
+            .map(([name, value]) => ({ name, value }));
+
+        const domainCounts = Object.entries(domainMap)
+            .filter(([_, val]) => val > 0)
+            .map(([name, value]) => ({ name, value }));
+
+        const verificationStats = [
+            { name: 'Verified (Skill Test Done)', value: verifiedCount },
+            { name: 'Resume Only (Unverified)', value: unverifiedCount }
+        ];
+
+        return { topSkills, domainCounts, verificationStats, totalSkillsCount, verifiedCount };
+    }, [allCandidates]);
+
     useEffect(() => {
         fetchJobs();
         fetchScheduledInterviews();
@@ -56,8 +318,28 @@ export default function InterviewerPortal() {
     const fetchAllCandidates = async () => {
         setAllCandidatesLoading(true);
         try {
-            const data = await api.listCandidates();
-            const sorted = (data.candidates || []).sort((a, b) =>
+            const [data, atsData] = await Promise.all([
+                api.listCandidates(),
+                api.listAtsCandidates().catch(() => ({ candidates: [] }))
+            ]);
+
+            const atsMap = {};
+            (atsData.candidates || []).forEach(ac => {
+                if (ac.id) atsMap[ac.id] = ac;
+                if (ac.email) atsMap[ac.email] = ac;
+            });
+
+            const combined = (data.candidates || []).map(c => {
+                const atsItem = atsMap[c.id] || atsMap[c.email] || {};
+                return {
+                    ...c,
+                    current_status: atsItem.current_status || c.current_status || 'Applied',
+                    phone: atsItem.phone || c.phone || '',
+                    source: atsItem.source || c.source || 'Direct'
+                };
+            });
+
+            const sorted = combined.sort((a, b) =>
                 (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
             );
             setAllCandidates(sorted);
@@ -188,6 +470,7 @@ export default function InterviewerPortal() {
 
             <nav className="portal-tabs">
                 <button className={`tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>📊 Dashboard</button>
+                <button className={`tab-btn ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')}>📈 Talent Analytics</button>
                 <button className={`tab-btn ${activeTab === 'jobs' ? 'active' : ''}`} onClick={() => setActiveTab('jobs')}>💼 Jobs</button>
                 <button className={`tab-btn ${activeTab === 'candidates' ? 'active' : ''}`} onClick={() => setActiveTab('candidates')}>👥 Talent Hub</button>
                 <button className={`tab-btn ${activeTab === 'interviews' ? 'active' : ''}`} onClick={() => setActiveTab('interviews')}>🎙️ Interviews</button>
@@ -195,110 +478,204 @@ export default function InterviewerPortal() {
             </nav>
 
             <main className="portal-content">
-                {/* DASHBOARD TAB */}
-                {activeTab === 'dashboard' && (
+                {/* ANALYTICS TAB */}
+                {activeTab === 'analytics' && (
                     <div className="portal-section profile-tab-animate">
-                        <div className="profile-hero card glass-card">
+                        <div className="profile-hero card glass-card" style={{ marginBottom: '2rem' }}>
                             <div className="profile-hero-content">
-                                <div className="profile-avatar-large">
-                                    {(user?.name || 'R').charAt(0).toUpperCase()}
-                                    <div className="avatar-pulse"></div>
-                                </div>
                                 <div className="profile-basic-info">
-                                    <h2 className="profile-full-name">Welcome back, {user?.name || 'Recruiter'}</h2>
-                                    <p className="profile-tagline">🚀 Managing {jobs.length} Active Positions • {applications.length} New Applications</p>
-                                    <div className="profile-badges">
-                                        <span className="hub-badge pulse-badge">System Active</span>
-                                        <span className="hub-badge secondary-badge">AI Ranking Enabled</span>
-                                        <span className="hub-badge accent-badge">Premium Recruiter</span>
+                                    <h2 className="profile-full-name">📊 Visual Analysis of Candidate Pool</h2>
+                                    <p className="profile-tagline">Comprehensive real-time insights on skills, domain distributions, test verification status, and candidate details.</p>
+                                    <div className="profile-badges" style={{ marginTop: '1rem' }}>
+                                        <span className="hub-badge pulse-badge">Live Pool Metrics</span>
+                                        <span className="hub-badge secondary-badge">{allCandidates.length} Total Candidates</span>
+                                        <span className="hub-badge accent-badge">{analyticsData.verifiedCount} Verified Tests</span>
                                     </div>
-                                </div>
-                                <div className="profile-quick-actions">
-                                    <button className="hub-btn hub-btn-primary" onClick={() => setActiveTab('jobs')}>
-                                        Post New Job
-                                    </button>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="stats-overview-grid">
+                        <div className="stats-overview-grid" style={{ marginBottom: '2rem' }}>
                             <div className="card glass-card stat-card-premium">
-                                <div className="stat-card-label">Overall Applications</div>
-                                <div className="stat-card-value">{applications.length}</div>
-                                <div className="stat-card-footer positive">+{applications.filter(a => new Date(a.created_at) > new Date(Date.now() - 86400000)).length} in last 24h</div>
-                            </div>
-                            <div className="card glass-card stat-card-premium">
-                                <div className="stat-card-label">Active Job Roles</div>
-                                <div className="stat-card-value">{jobs.length}</div>
-                                <div className="stat-card-footer">System Optimized</div>
-                            </div>
-                            <div className="card glass-card stat-card-premium">
-                                <div className="stat-card-label">Interviews Scheduled</div>
-                                <div className="stat-card-value">{scheduledInterviews.length}</div>
-                                <div className="stat-card-footer">AI-Scribed sessions</div>
-                            </div>
-                            <div className="card glass-card stat-card-premium">
-                                <div className="stat-card-label">Talent Pool Size</div>
+                                <div className="stat-card-label">Total Talent Pool</div>
                                 <div className="stat-card-value">{allCandidates.length}</div>
-                                <div className="stat-card-footer positive">Rich Profiles</div>
+                                <div className="stat-card-footer positive">Active Candidate Resumes</div>
+                            </div>
+                            <div className="card glass-card stat-card-premium">
+                                <div className="stat-card-label">Total Extracted Skills</div>
+                                <div className="stat-card-value">{analyticsData.totalSkillsCount}</div>
+                                <div className="stat-card-footer">Unique skill tags parsed</div>
+                            </div>
+                            <div className="card glass-card stat-card-premium">
+                                <div className="stat-card-label">Test Verified Candidates</div>
+                                <div className="stat-card-value">{analyticsData.verifiedCount}</div>
+                                <div className="stat-card-footer positive">Passed Skill Assessments</div>
+                            </div>
+                            <div className="card glass-card stat-card-premium">
+                                <div className="stat-card-label">Top Skill in Pool</div>
+                                <div className="stat-card-value" style={{ fontSize: '1.4rem' }}>{analyticsData.topSkills[0]?.name || 'N/A'}</div>
+                                <div className="stat-card-footer">{analyticsData.topSkills[0]?.value || 0} candidates</div>
                             </div>
                         </div>
 
-                        <div className="profile-grid" style={{ marginTop: '2rem' }}>
-                            <div className="profile-main-col">
-                                <div className="card glass-card">
-                                    <div className="card-header-fancy">
-                                        <h3>🔥 Trending Candidates</h3>
-                                        <button className=" action-btn ghost-btn small-btn" onClick={() => setActiveTab('candidates')}>View All</button>
-                                    </div>
-                                    <div className="candidate-list-mini">
-                                        {allCandidates.slice(0, 4).map((c, i) => (
-                                            <div key={i} className="mini-candidate-row">
-                                                <div className="mini-avatar">{(c.name || 'U').charAt(0).toUpperCase()}</div>
-                                                <div className="mini-info">
-                                                    <div className="mini-name">{c.name}</div>
-                                                    <div className="mini-email">{c.email}</div>
-                                                </div>
-                                                <div className="mini-skills">
-                                                    {c.skills?.slice(0, 3).map((s, j) => (
-                                                        <span key={j} className="mini-skill-pill">{s}</span>
+                        {/* Charts Row 1 */}
+                        <div className="profile-grid" style={{ marginBottom: '2rem' }}>
+                            {/* Top Pool Skills Bar Chart */}
+                            <div className="card glass-card" style={{ padding: '1.5rem', minHeight: '380px' }}>
+                                <div className="card-header-fancy" style={{ marginBottom: '1.25rem' }}>
+                                    <h3>🔥 Top Skills Prevalent in Candidate Pool</h3>
+                                    <span className="header-icon">📊</span>
+                                </div>
+                                <div style={{ width: '100%', height: '280px' }}>
+                                    {analyticsData.topSkills.length > 0 ? (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={analyticsData.topSkills} layout="vertical">
+                                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(255,255,255,0.05)" />
+                                                <XAxis type="number" stroke="var(--gray-600)" fontSize={11} />
+                                                <YAxis dataKey="name" type="category" stroke="var(--gray-300)" fontSize={11} width={110} />
+                                                <Tooltip
+                                                    contentStyle={{ background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '12px' }}
+                                                    itemStyle={{ color: 'var(--accent-400)' }}
+                                                    cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                                                />
+                                                <Bar dataKey="value" radius={[0, 6, 6, 0]}>
+                                                    {analyticsData.topSkills.map((entry, index) => (
+                                                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                                                     ))}
-                                                </div>
-                                                <button className="action-btn ghost-btn" onClick={() => setActiveTab('candidates')}>Details</button>
-                                            </div>
-                                        ))}
-                                    </div>
+                                                </Bar>
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    ) : (
+                                        <p className="muted-text" style={{ textAlign: 'center', marginTop: '4rem' }}>No skill metrics available.</p>
+                                    )}
                                 </div>
                             </div>
-                            <div className="profile-side-col">
-                                <div className="card glass-card">
-                                    <div className="card-header-fancy">
-                                        <h3>🔔 System Activity</h3>
-                                    </div>
-                                    <div className="activity-feed">
-                                        {applications.slice(0, 4).map((app, i) => (
-                                            <div key={i} className="activity-item">
-                                                <div className="activity-status-dot" data-status="pending"></div>
-                                                <div className="activity-details">
-                                                    <p className="activity-title">New application for <strong>{app.job_title}</strong></p>
-                                                    <div className="activity-meta">
-                                                        <span className="activity-date">{new Date(app.created_at).toLocaleDateString()}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
+
+                            {/* Candidate Skill Domain Distribution */}
+                            <div className="card glass-card" style={{ padding: '1.5rem', minHeight: '380px' }}>
+                                <div className="card-header-fancy" style={{ marginBottom: '1.25rem' }}>
+                                    <h3>🎯 Domain Distribution Across Pool</h3>
+                                    <span className="header-icon">🧩</span>
                                 </div>
+                                <div style={{ width: '100%', height: '280px' }}>
+                                    {analyticsData.domainCounts.length > 0 ? (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Pie
+                                                    data={analyticsData.domainCounts}
+                                                    cx="50%"
+                                                    cy="50%"
+                                                    innerRadius={55}
+                                                    outerRadius={95}
+                                                    paddingAngle={4}
+                                                    dataKey="value"
+                                                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                                                >
+                                                    {analyticsData.domainCounts.map((entry, index) => (
+                                                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                                    ))}
+                                                </Pie>
+                                                <Tooltip
+                                                    contentStyle={{ background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '12px' }}
+                                                />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    ) : (
+                                        <p className="muted-text" style={{ textAlign: 'center', marginTop: '4rem' }}>No domain metrics available.</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Candidate Pool Detailed Visual Matrix */}
+                        <div className="card glass-card" style={{ padding: '1.5rem' }}>
+                            <div className="card-header-fancy" style={{ marginBottom: '1.5rem' }}>
+                                <h3>👥 Candidate Pool Roster & Direct Downloads</h3>
+                                <span className="header-icon">📥</span>
+                            </div>
+                            <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+                                    <thead>
+                                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--gray-400)', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.05em' }}>
+                                            <th style={{ padding: '0.75rem 1rem' }}>Rank</th>
+                                            <th style={{ padding: '0.75rem 1rem' }}>Candidate</th>
+                                            <th style={{ padding: '0.75rem 1rem' }}>Verification Status</th>
+                                            <th style={{ padding: '0.75rem 1rem' }}>Extracted Skills</th>
+                                            <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {allCandidates.map((cand, idx) => (
+                                            <tr key={cand.id || idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <td style={{ padding: '1rem', fontWeight: 800, color: 'var(--accent-400)' }}>#{cand.global_rank || (idx + 1)}</td>
+                                                <td style={{ padding: '1rem' }}>
+                                                    <div style={{ fontWeight: 700, color: 'white' }}>{cand.name}</div>
+                                                    <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)' }}>{cand.email}</div>
+                                                </td>
+                                                <td style={{ padding: '1rem' }}>
+                                                    {cand.is_verified || (cand.skill_scores && Object.keys(cand.skill_scores).length > 0) ? (
+                                                        <span className="verified-tag" title="Verified Skill Tests Done">✓ Verified Test</span>
+                                                    ) : (
+                                                        <span style={{ fontSize: '0.75rem', color: '#fbbf24', background: 'rgba(251, 191, 36, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid rgba(251, 191, 36, 0.2)' }}>📄 Resume Only</span>
+                                                    )}
+                                                </td>
+                                                <td style={{ padding: '1rem' }}>
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', maxWidth: '350px' }}>
+                                                        {(cand.skills || []).slice(0, 4).map((s, j) => (
+                                                            <span key={j} className="mini-skill-pill">{s}</span>
+                                                        ))}
+                                                        {(cand.skills || []).length > 4 && (
+                                                            <span style={{ fontSize: '0.7rem', color: 'var(--gray-500)' }}>+{cand.skills.length - 4} more</span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td style={{ padding: '1rem', textAlign: 'right' }}>
+                                                    <button
+                                                        className="hub-btn hub-btn-primary"
+                                                        style={{ padding: '0.4rem 0.9rem', fontSize: '0.75rem' }}
+                                                        onClick={() => downloadCandidateReport(cand, selectedJob)}
+                                                    >
+                                                        📥 Download Report
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
+                )}
+
+                {/* DASHBOARD TAB - MILESTONE 4 RECRUITMENT CONTROL CENTER */}
+                {activeTab === 'dashboard' && (
+                    <Milestone4Dashboard
+                        onNavigateTab={setActiveTab}
+                        onViewCandidateResume={(c) => setViewingResume(c)}
+                    />
                 )}
                 {/* INTERVIEWS TAB */}
                 {activeTab === 'interviews' && (
                     <div className="portal-section">
                         <div className="section-header">
-                            <h2>🎙️ Interview Management</h2>
-                            <button className="action-btn ghost-btn" onClick={fetchScheduledInterviews}>🔄 Refresh</button>
+                            <div>
+                                <h2>🎙️ Interview Management</h2>
+                                <p className="muted-text">Unified monitoring for AI Interview Simulations and Scheduled Video Calls.</p>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                <button
+                                    className="hub-btn hub-btn-primary"
+                                    style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+                                    onClick={() => setQuestionGenModal({
+                                        roleTitle: jobs.length > 0 ? jobs[0].title : 'Senior ML Engineer',
+                                        jobId: jobs.length > 0 ? jobs[0].id : null,
+                                        candidateId: null
+                                    })}
+                                >
+                                    ✨ Role Question Generator
+                                </button>
+                                <button className="action-btn ghost-btn" onClick={fetchScheduledInterviews}>🔄 Refresh</button>
+                            </div>
                         </div>
 
                         {loadingScheduled && (
@@ -531,30 +908,40 @@ export default function InterviewerPortal() {
                                                                 )}
                                                             </div>
                                                         </div>
-                                                        <div className="match-score-pill">
-                                                            <span className="match-score-value">{((candidate.final_score || 0) * 100).toFixed(0)}%</span>
-                                                            <span className="match-score-label">Match Score</span>
+                                                        <div className="match-score-pill" style={{ background: 'linear-gradient(135deg, var(--primary-600), var(--accent-600))', padding: '0.6rem 1.25rem', borderRadius: '12px', textAlign: 'right' }}>
+                                                            <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'white', lineHeight: '1' }}>
+                                                                {candidate.hiring_score || ((candidate.final_score || 0) * 100).toFixed(0)}%
+                                                            </div>
+                                                            <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'rgba(255,255,255,0.9)', letterSpacing: '0.05em', fontWeight: 800, marginTop: '0.2rem' }}>
+                                                                🎯 Hiring Score
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            {explain && (
-                                                <div className="score-breakdown-details">
-                                                    <div className="breakdown-stat">
-                                                        <label>🔍 Semantic Relevance</label>
-                                                        <span>{((explain.search_relevance || 0) * 100).toFixed(0)}%</span>
-                                                    </div>
-                                                    <div className="breakdown-stat">
-                                                        <label>🛠️ Skill Match</label>
-                                                        <span>{((explain.skill_match_ratio || 0) * 100).toFixed(0)}%</span>
-                                                    </div>
-                                                    <div className="breakdown-stat">
-                                                        <label>🎯 Precision Score</label>
-                                                        <span>{((explain.dense_similarity || explain.keyword_match || 0) * 100).toFixed(0)}%</span>
-                                                    </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', marginTop: '0.5rem' }}>
+                                                <span className="hub-badge" style={{ background: candidate.hiring_score >= 80 ? 'rgba(16, 185, 129, 0.2)' : candidate.hiring_score >= 65 ? 'rgba(99, 102, 241, 0.2)' : 'rgba(245, 158, 11, 0.2)', color: candidate.hiring_score >= 80 ? '#10b981' : candidate.hiring_score >= 65 ? '#818cf8' : '#fbbf24', border: '1px solid rgba(255,255,255,0.1)', fontSize: '0.75rem', fontWeight: 700 }}>
+                                                    Recommendation: {candidate.hiring_recommendation || (candidate.has_attended_test ? 'Test Verified' : 'Resume Evaluated')}
+                                                </span>
+                                            </div>
+
+                                            <div className="score-breakdown-details" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', background: 'rgba(255,255,255,0.02)', padding: '0.85rem', borderRadius: '10px', marginBottom: '1.25rem' }}>
+                                                <div className="breakdown-stat">
+                                                    <label style={{ fontSize: '0.75rem', color: 'var(--gray-400)' }}>📄 Resume-JD Match</label>
+                                                    <span style={{ fontSize: '1rem', fontWeight: 800, color: 'white' }}>{candidate.resume_match_score || ((candidate.skill_match_ratio || 0) * 100).toFixed(0)}%</span>
                                                 </div>
-                                            )}
+                                                <div className="breakdown-stat">
+                                                    <label style={{ fontSize: '0.75rem', color: 'var(--gray-400)' }}>⚡ Skill Test Score</label>
+                                                    <span style={{ fontSize: '1rem', fontWeight: 800, color: candidate.has_attended_test ? '#10b981' : '#fbbf24' }}>
+                                                        {candidate.has_attended_test ? `${candidate.test_match_score}%` : 'Not Attended'}
+                                                    </span>
+                                                </div>
+                                                <div className="breakdown-stat">
+                                                    <label style={{ fontSize: '0.75rem', color: 'var(--gray-400)' }}>🔍 Semantic Relevance</label>
+                                                    <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--accent-400)' }}>{((explain?.search_relevance || 0) * 100).toFixed(0)}%</span>
+                                                </div>
+                                            </div>
 
                                             <div className="skill-gap-analysis">
                                                 <div className="skill-set-group">
@@ -577,45 +964,35 @@ export default function InterviewerPortal() {
                                                 </div>
                                             </div>
 
-                                            {candidate.aptitude_scores && Object.keys(candidate.aptitude_scores).length > 0 && (
-                                                <div className="aptitude-preview">
+                                            {candidate.skill_scores && Object.keys(candidate.skill_scores).length > 0 ? (
+                                                <div className="aptitude-preview" style={{ marginTop: '1rem', background: 'rgba(16, 185, 129, 0.06)', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
                                                     <div className="aptitude-header">
-                                                        <span>📊 AI Behavioral & Aptitude Assessment</span>
-                                                        <span style={{ color: 'var(--gray-500)', fontSize: '0.75rem' }}>*Scores from technical screenings</span>
+                                                        <span style={{ color: 'var(--emerald-400)', fontWeight: 'bold' }}>⚡ Verified Skill Test Results (Real Assessment Data)</span>
+                                                        <span style={{ color: 'var(--emerald-500)', fontSize: '0.75rem' }}>✓ Test Attended</span>
                                                     </div>
                                                     <div className="aptitude-mini-grid">
-                                                        {Object.entries(candidate.aptitude_scores).map(([label, val]) => {
-                                                            const colorClass = val >= 0.8 ? 'apt-val-high' : val >= 0.6 ? 'apt-val-mid' : 'apt-val-low';
-                                                            return (
-                                                                <div key={label} className="aptitude-mini-item">
-                                                                    <span style={{ color: 'var(--gray-400)' }}>{label}</span>
-                                                                    <span className={colorClass}>{(val * 100).toFixed(0)}%</span>
-                                                                </div>
-                                                            );
-                                                        })}
+                                                        {Object.entries(candidate.skill_scores).map(([label, val]) => (
+                                                            <div key={label} className="aptitude-mini-item">
+                                                                <span style={{ color: 'var(--gray-300)' }}>{label}</span>
+                                                                <span style={{ color: 'var(--emerald-400)', fontWeight: 'bold' }}>{val.toFixed(0)}%</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="test-report-box" style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px dashed rgba(255, 255, 255, 0.12)', padding: '0.85rem 1rem', borderRadius: '10px', marginTop: '1rem' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                        <span style={{ color: 'var(--gray-400)', fontSize: '0.85rem' }}>📄 Technical Test: <strong style={{ color: '#fbbf24' }}>Not Attended</strong></span>
+                                                        <span style={{ fontSize: '0.75rem', color: 'var(--gray-500)', fontStyle: 'italic' }}>Match score calculated 100% from Resume Data</span>
                                                     </div>
                                                 </div>
                                             )}
 
-                                            {candidate.skill_scores && Object.keys(candidate.skill_scores).length > 0 && (
-                                                <div className="aptitude-preview" style={{ borderTop: 'none', marginTop: '0.5rem' }}>
-                                                    <div className="aptitude-header">
-                                                        <span>⚡ Verified Skill Accuracy (Rapid-Fire Tests)</span>
-                                                    </div>
-                                                    <div className="aptitude-mini-grid">
-                                                        {Object.entries(candidate.skill_scores).map(([label, val]) => {
-                                                            return (
-                                                                <div key={label} className="aptitude-mini-item">
-                                                                    <span style={{ color: 'var(--gray-400)' }}>{label}</span>
-                                                                    <span style={{ color: 'var(--emerald-400)', fontWeight: 'bold' }}>{val.toFixed(0)}%</span>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            <div className="card-footer" style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1.5rem' }}>
+                                            <div className="card-footer" style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1.5rem', gap: '0.75rem' }}>
+                                                <button className="hub-btn hub-btn-secondary" style={{ padding: '0.75rem 1.5rem', background: 'rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99, 102, 241, 0.4)' }}
+                                                    onClick={() => downloadCandidateReport(candidate, selectedJob)}>
+                                                    📥 Download Report
+                                                </button>
                                                 <button className="hub-btn hub-btn-secondary" style={{ padding: '0.75rem 1.5rem' }}
                                                     onClick={() => setViewingResume({
                                                         file_name: `${candidate.name}_Resume.pdf`,
@@ -636,62 +1013,339 @@ export default function InterviewerPortal() {
                         )}
 
                         {!searching && !selectedJob && (
-                            <div className="candidate-list">
-                                {allCandidatesLoading ? (
-                                    <div className="loading-state">
-                                        <span className="spinner" style={{ width: 40, height: 40, borderWidth: 3 }} />
-                                        <p>Loading candidates...</p>
+                            <div>
+                                {/* Voice-Enabled Candidate Search Bar */}
+                                <div style={{
+                                    display: 'flex',
+                                    gap: '0.75rem',
+                                    alignItems: 'center',
+                                    marginBottom: '1rem',
+                                    background: 'rgba(255,255,255,0.03)',
+                                    padding: '0.75rem 1rem',
+                                    borderRadius: '12px',
+                                    border: '1px solid rgba(255,255,255,0.08)'
+                                }}>
+                                    <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            value={candidateSearchQuery}
+                                            onChange={e => {
+                                                setCandidateSearchQuery(e.target.value);
+                                                resetSearchTranscript(e.target.value);
+                                            }}
+                                            placeholder={
+                                                isSearchListening
+                                                    ? "Listening... Speak candidate name or skill (e.g. 'Python', 'React', 'Alex')..."
+                                                    : "🔍 Search candidates by name, skill, email, or role... or click mic to speak"
+                                            }
+                                            style={{
+                                                width: '100%',
+                                                background: isSearchListening ? 'rgba(99, 102, 241, 0.1)' : 'rgba(0,0,0,0.3)',
+                                                border: isSearchListening ? '1.5px solid #6366f1' : '1px solid rgba(255,255,255,0.1)',
+                                                padding: '0.6rem 2.5rem 0.6rem 1rem',
+                                                fontSize: '0.88rem',
+                                                borderRadius: '8px'
+                                            }}
+                                        />
+                                        {candidateSearchQuery && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setCandidateSearchQuery('');
+                                                    resetSearchTranscript('');
+                                                }}
+                                                style={{
+                                                    position: 'absolute',
+                                                    right: '10px',
+                                                    background: 'transparent',
+                                                    border: 'none',
+                                                    color: 'var(--gray-400)',
+                                                    cursor: 'pointer',
+                                                    fontSize: '0.9rem'
+                                                }}
+                                                title="Clear search"
+                                            >
+                                                ✕
+                                            </button>
+                                        )}
                                     </div>
-                                ) : (
-                                    allCandidates.map((candidate, idx) => (
-                                        <div key={idx} className="card glass-card candidate-card-row">
-                                            <div className="candidate-info">
-                                                <div className="candidate-rank" style={{
-                                                    background: candidate.global_rank <= 3 ? 'linear-gradient(135deg, #6366f1, #a855f7)' : 'var(--gray-700)',
-                                                    fontSize: '0.9rem',
-                                                    fontWeight: 900
+
+                                    {/* Microphone search button with SpeechRecognition */}
+                                    <VoiceInputButton
+                                        isListening={isSearchListening}
+                                        audioLevel={searchAudioLevel}
+                                        isSupported={searchVoiceSupported}
+                                        onClick={() => toggleSearchVoice(candidateSearchQuery)}
+                                        size="md"
+                                        showWaveform={true}
+                                        title={isSearchListening ? "Stop voice search" : `Click to speak candidate search with ${searchRecognitionEngine}`}
+                                    />
+
+                                    {candidateSearchQuery && (
+                                        <span style={{ fontSize: '0.78rem', color: '#a5b4fc', whiteSpace: 'nowrap' }}>
+                                            Filtering "{candidateSearchQuery}"
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* ATS Pipeline Stage Filters */}
+                                <div style={{
+                                    display: 'flex',
+                                    gap: '0.5rem',
+                                    flexWrap: 'wrap',
+                                    marginBottom: '1.5rem',
+                                    background: 'rgba(255,255,255,0.02)',
+                                    padding: '0.85rem',
+                                    borderRadius: '12px',
+                                    border: '1px solid rgba(255,255,255,0.06)'
+                                }}>
+                                    {['All', 'Applied', 'Screening', 'Shortlisted', 'Interview Scheduled', 'Interview In Progress', 'Interview Completed', 'Selected', 'Rejected'].map(stage => {
+                                        const count = stage === 'All'
+                                            ? allCandidates.length
+                                            : allCandidates.filter(c => (c.current_status || 'Applied') === stage).length;
+                                        return (
+                                            <button
+                                                key={stage}
+                                                type="button"
+                                                onClick={() => setAtsStageFilter(stage)}
+                                                style={{
+                                                    background: atsStageFilter === stage ? 'var(--primary-600)' : 'rgba(255,255,255,0.04)',
+                                                    color: atsStageFilter === stage ? 'white' : 'var(--gray-300)',
+                                                    border: '1px solid rgba(255,255,255,0.08)',
+                                                    borderRadius: '8px',
+                                                    padding: '0.4rem 0.75rem',
+                                                    fontSize: '0.8rem',
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.4rem'
+                                                }}
+                                            >
+                                                <span>{stage}</span>
+                                                <span style={{
+                                                    background: 'rgba(0,0,0,0.3)',
+                                                    padding: '0.1rem 0.4rem',
+                                                    borderRadius: '4px',
+                                                    fontSize: '0.75rem'
                                                 }}>
-                                                    #{candidate.global_rank || (idx + 1)}
-                                                </div>
-                                                <div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                        <h3 className="candidate-name" style={{ margin: 0 }}>{candidate.name || candidate.id}</h3>
-                                                        {candidate.is_verified && <span className="verified-tag" title="Verified Skill Tests Done">✓ Verified</span>}
-                                                    </div>
-                                                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginTop: '0.2rem' }}>
-                                                        <p className="candidate-email" style={{ margin: 0 }}>{candidate.email || ''}</p>
-                                                        {candidate.entities?.LOCATION && (
-                                                            <>
-                                                                <span style={{ color: 'var(--gray-600)' }}>•</span>
-                                                                <span style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>📍 {candidate.entities.LOCATION}</span>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                    <div className="skill-tags" style={{ marginTop: '0.6rem' }}>
-                                                        {(candidate.skills || []).map((skill, i) => (
-                                                            <SkillTag key={i} skill={skill} />
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="candidate-actions">
-                                                <button className="action-btn ghost-btn" style={{ marginRight: '0.5rem' }}
-                                                    onClick={() => setViewingResume({
-                                                        file_name: `${candidate.name}_Resume.pdf`,
-                                                        url: api.getLatestResumeUrl(candidate.id),
-                                                        entities: candidate.entities
-                                                    })}>
-                                                    👁️ Resume
-                                                </button>
-                                                <button className="action-btn primary-btn"
-                                                    onClick={() => setSchedulingCandidate(candidate)}>
-                                                    📅 Schedule
-                                                </button>
-                                            </div>
+                                                    {count}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                <div className="candidate-list">
+                                    {allCandidatesLoading ? (
+                                        <div className="loading-state">
+                                            <span className="spinner" style={{ width: 40, height: 40, borderWidth: 3 }} />
+                                            <p>Loading candidates...</p>
                                         </div>
-                                    ))
-                                )}
-                            </div >
+                                    ) : allCandidates
+                                        .filter(c => atsStageFilter === 'All' || (c.current_status || 'Applied') === atsStageFilter)
+                                        .filter(c => {
+                                            if (!candidateSearchQuery.trim()) return true;
+                                            const q = candidateSearchQuery.toLowerCase();
+                                            return (
+                                                (c.name || '').toLowerCase().includes(q) ||
+                                                (c.email || '').toLowerCase().includes(q) ||
+                                                (c.skills || []).some(s => s.toLowerCase().includes(q)) ||
+                                                (c.entities?.DESIGNATION || '').toLowerCase().includes(q)
+                                            );
+                                        }).length === 0 ? (
+                                        <div className="empty-state" style={{ padding: '3rem', textAlign: 'center' }}>
+                                            <p style={{ color: 'var(--gray-400)' }}>
+                                                {candidateSearchQuery ? `No candidates found matching "${candidateSearchQuery}".` : `No candidates currently in stage '${atsStageFilter}'.`}
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        allCandidates
+                                            .filter(c => atsStageFilter === 'All' || (c.current_status || 'Applied') === atsStageFilter)
+                                            .filter(c => {
+                                                if (!candidateSearchQuery.trim()) return true;
+                                                const q = candidateSearchQuery.toLowerCase();
+                                                return (
+                                                    (c.name || '').toLowerCase().includes(q) ||
+                                                    (c.email || '').toLowerCase().includes(q) ||
+                                                    (c.skills || []).some(s => s.toLowerCase().includes(q)) ||
+                                                    (c.entities?.DESIGNATION || '').toLowerCase().includes(q)
+                                                );
+                                            })
+                                            .map((candidate, idx) => {
+                                                const currentStage = candidate.current_status || 'Applied';
+                                                return (
+                                                    <div key={idx} className="card glass-card candidate-card-row" style={{ alignItems: 'flex-start', padding: '1.25rem' }}>
+                                                        <div className="candidate-info" style={{ flex: 1 }}>
+                                                            <div className="candidate-rank" style={{
+                                                                background: candidate.global_rank <= 3 ? 'linear-gradient(135deg, #6366f1, #a855f7)' : 'var(--gray-700)',
+                                                                fontSize: '0.9rem',
+                                                                fontWeight: 900
+                                                            }}>
+                                                                #{candidate.global_rank || (idx + 1)}
+                                                            </div>
+                                                            <div style={{ flex: 1 }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                                                    <h3 className="candidate-name" style={{ margin: 0 }}>{candidate.name || candidate.id}</h3>
+                                                                    {candidate.is_verified && <span className="verified-tag" title="Verified Skill Tests Done">✓ Verified</span>}
+
+                                                                    {/* ATS Stage Selector */}
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginLeft: 'auto' }}>
+                                                                        <span style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>ATS Stage:</span>
+                                                                        <select
+                                                                            value={currentStage}
+                                                                            onChange={e => handleUpdateCandidateStage(candidate.id, e.target.value)}
+                                                                            style={{
+                                                                                background: currentStage === 'Interview Completed' ? 'rgba(16, 185, 129, 0.2)' :
+                                                                                            currentStage === 'Interview In Progress' ? 'rgba(236, 72, 153, 0.2)' :
+                                                                                            currentStage === 'Interview Scheduled' ? 'rgba(245, 158, 11, 0.2)' :
+                                                                                            currentStage === 'Selected' ? 'rgba(5, 150, 105, 0.25)' :
+                                                                                            currentStage === 'Rejected' ? 'rgba(244, 63, 94, 0.2)' :
+                                                                                            'rgba(99, 102, 241, 0.2)',
+                                                                                color: currentStage === 'Interview Completed' ? '#34d399' :
+                                                                                       currentStage === 'Interview In Progress' ? '#f472b6' :
+                                                                                       currentStage === 'Interview Scheduled' ? '#fbbf24' :
+                                                                                       currentStage === 'Selected' ? '#10b981' :
+                                                                                       currentStage === 'Rejected' ? '#fb7185' :
+                                                                                       '#818cf8',
+                                                                                border: '1px solid rgba(255, 255, 255, 0.15)',
+                                                                                borderRadius: '6px',
+                                                                                padding: '0.2rem 0.5rem',
+                                                                                fontSize: '0.75rem',
+                                                                                fontWeight: 700,
+                                                                                outline: 'none',
+                                                                                cursor: 'pointer'
+                                                                            }}
+                                                                        >
+                                                                            <option value="Applied">Applied</option>
+                                                                            <option value="Screening">Screening</option>
+                                                                            <option value="Shortlisted">Shortlisted</option>
+                                                                            <option value="Interview Scheduled">Interview Scheduled</option>
+                                                                            <option value="Interview In Progress">Interview In Progress</option>
+                                                                            <option value="Interview Completed">Interview Completed</option>
+                                                                            <option value="Selected">Selected</option>
+                                                                            <option value="Rejected">Rejected</option>
+                                                                        </select>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginTop: '0.3rem', flexWrap: 'wrap' }}>
+                                                                    <p className="candidate-email" style={{ margin: 0 }}>{candidate.email || ''}</p>
+                                                                    {candidate.phone && (
+                                                                        <>
+                                                                            <span style={{ color: 'var(--gray-600)' }}>•</span>
+                                                                            <span style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>📞 {candidate.phone}</span>
+                                                                        </>
+                                                                    )}
+                                                                    {candidate.entities?.LOCATION && (
+                                                                        <>
+                                                                            <span style={{ color: 'var(--gray-600)' }}>•</span>
+                                                                            <span style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>📍 {candidate.entities.LOCATION}</span>
+                                                                        </>
+                                                                    )}
+                                                                </div>
+
+                                                                <div className="skill-tags" style={{ marginTop: '0.6rem' }}>
+                                                                    {(candidate.skills || []).map((skill, i) => (
+                                                                        <SkillTag key={i} skill={skill} />
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Actions Toolbar */}
+                                                        <div className="candidate-actions" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', justifyContent: 'flex-end', width: '100%', marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+                                                            <button
+                                                                className="action-btn ghost-btn"
+                                                                onClick={() => setQuestionGenModal({
+                                                                    roleTitle: jobs.length > 0 ? jobs[0].title : 'Senior ML Engineer',
+                                                                    jobId: jobs.length > 0 ? jobs[0].id : null,
+                                                                    candidateId: candidate.id,
+                                                                    candidateName: candidate.name
+                                                                })}
+                                                                title="Generate AI Questions for this Candidate"
+                                                            >
+                                                                ✨ Questions
+                                                            </button>
+
+                                                            <button
+                                                                className="action-btn ghost-btn"
+                                                                onClick={() => handleViewAtsMatch(candidate)}
+                                                                title="View Hugging Face Semantic ATS Match"
+                                                                style={{ color: '#ec4899', borderColor: 'rgba(236, 72, 153, 0.3)' }}
+                                                            >
+                                                                🧠 HF Match
+                                                            </button>
+
+                                                            <button
+                                                                className="action-btn ghost-btn"
+                                                                onClick={async () => {
+                                                                    try {
+                                                                        const simData = await api.getLatestSimulation(candidate.id);
+                                                                        if (simData && simData.session_id) {
+                                                                            setLiveMonitorModal({
+                                                                                sessionId: simData.session_id,
+                                                                                candidateName: candidate.name,
+                                                                                jobTitle: simData.job_title || 'Technical Role'
+                                                                            });
+                                                                        } else {
+                                                                            alert(`No interview simulation session found for ${candidate.name}. Click "✨ Questions" to schedule one.`);
+                                                                        }
+                                                                    } catch (err) {
+                                                                        alert(err.message || 'Error fetching interview session');
+                                                                    }
+                                                                }}
+                                                                title="Monitor Candidate's Live Interview Progress"
+                                                                style={{
+                                                                    color: (currentStage === 'Interview In Progress' || currentStage === 'Interview Scheduled') ? '#f472b6' : 'var(--gray-300)',
+                                                                    background: (currentStage === 'Interview In Progress') ? 'rgba(236, 72, 153, 0.2)' : 'transparent',
+                                                                    borderColor: (currentStage === 'Interview In Progress') ? '#ec4899' : 'rgba(255, 255, 255, 0.1)'
+                                                                }}
+                                                            >
+                                                                📡 Live Monitor
+                                                            </button>
+
+                                                            <button
+                                                                className="action-btn ghost-btn"
+                                                                onClick={() => handleViewInterviewReport(candidate)}
+                                                                title="View AI Interview Simulation Report"
+                                                            >
+                                                                📊 AI Report
+                                                            </button>
+
+                                                            <button
+                                                                className="action-btn ghost-btn"
+                                                                onClick={() => setHistoryModalCandidate({ id: candidate.id, name: candidate.name })}
+                                                                title="View ATS Lifecycle Timeline"
+                                                            >
+                                                                📜 History
+                                                            </button>
+
+                                                            <button
+                                                                className="action-btn ghost-btn"
+                                                                onClick={() => setViewingResume({
+                                                                    file_name: `${candidate.name}_Resume.pdf`,
+                                                                    url: api.getLatestResumeUrl(candidate.id),
+                                                                    entities: candidate.entities
+                                                                })}
+                                                            >
+                                                                👁️ Resume
+                                                            </button>
+
+                                                            <button
+                                                                className="action-btn primary-btn"
+                                                                onClick={() => setSchedulingCandidate(candidate)}
+                                                            >
+                                                                📅 Schedule
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                    )}
+                                </div>
+                            </div>
                         )}
                     </div >
                 )}
@@ -917,6 +1571,82 @@ export default function InterviewerPortal() {
                 fileName={viewingResume?.file_name}
                 entities={viewingResume?.entities}
             />
+
+            {/* Milestone 3: Question Generator Modal */}
+            <QuestionGeneratorModal
+                isOpen={!!questionGenModal}
+                onClose={() => setQuestionGenModal(null)}
+                defaultRole={questionGenModal?.roleTitle || 'Senior ML Engineer'}
+                jobId={questionGenModal?.jobId}
+                candidateId={questionGenModal?.candidateId}
+                candidateName={questionGenModal?.candidateName || 'Candidate'}
+                onStartSimulation={async (genResult) => {
+                    if (!questionGenModal?.candidateId) {
+                        alert('Select a candidate to start an interview simulation.');
+                        return;
+                    }
+                    try {
+                        const sim = await api.startSimulation({
+                            candidate_id: questionGenModal.candidateId,
+                            job_id: questionGenModal.jobId || jobs[0]?.id,
+                            num_questions: genResult.questions?.length || 5
+                        });
+                        alert(`Interview simulation started! Session ID: ${sim.session_id}`);
+                        setQuestionGenModal(null);
+                        fetchAllCandidates();
+                    } catch (err) {
+                        alert(err.message || 'Error starting simulation');
+                    }
+                }}
+            />
+
+            {/* Milestone 3: Interview Report Modal */}
+            <InterviewReportModal
+                isOpen={!!reportModalData}
+                onClose={() => setReportModalData(null)}
+                reportData={reportModalData}
+                onStatusUpdated={(candId, newStatus) => {
+                    setAllCandidates(prev => prev.map(c => (c.id === candId || c.candidate_id === candId) ? { ...c, current_status: newStatus } : c));
+                }}
+            />
+
+            {/* Milestone 3: Candidate Status History Modal */}
+            <CandidateStatusHistoryModal
+                isOpen={!!historyModalCandidate}
+                onClose={() => setHistoryModalCandidate(null)}
+                candidateId={historyModalCandidate?.id}
+                candidateName={historyModalCandidate?.name}
+            />
+
+            {/* Milestone 3: Live Interview Monitor Modal */}
+            <LiveInterviewMonitorModal
+                isOpen={!!liveMonitorModal}
+                onClose={() => setLiveMonitorModal(null)}
+                sessionId={liveMonitorModal?.sessionId}
+                candidateName={liveMonitorModal?.candidateName}
+                jobTitle={liveMonitorModal?.jobTitle}
+                onInterviewCompleted={() => {
+                    fetchAllCandidates();
+                }}
+            />
+
+            {/* Milestone 3: Hugging Face ATS Match Modal */}
+            <AtsMatchModal
+                isOpen={!!atsMatchModal}
+                onClose={() => setAtsMatchModal(null)}
+                candidate={atsMatchModal?.candidate}
+                jobTitle={atsMatchModal?.jobTitle}
+                matchData={atsMatchModal?.matchData}
+                onScheduleInterview={(cand) => {
+                    setQuestionGenModal({
+                        roleTitle: jobs.length > 0 ? jobs[0].title : 'Senior ML Engineer',
+                        jobId: jobs.length > 0 ? jobs[0].id : null,
+                        candidateId: cand.id,
+                        candidateName: cand.name
+                    });
+                }}
+            />
         </div >
     );
 }
+

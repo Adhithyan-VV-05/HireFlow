@@ -31,6 +31,14 @@ class Candidate(Base):
     entities_json = Column(Text, default="{}")
     aptitude_scores_json = Column(Text, default="{}")
     raw_text = Column(Text, default="")
+    phone = Column(Text, default="")
+    source = Column(Text, default="Direct")
+    current_status = Column(Text, default="Applied")
+    screening_score = Column(Float, nullable=True)
+    screening_summary = Column(Text, nullable=True)
+    screening_recommendation = Column(Text, nullable=True)
+    hired_at = Column(DateTime, nullable=True)
+    profile_json = Column(Text, default="{}")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", backref="candidate_profiles", foreign_keys=[user_id])
@@ -59,6 +67,29 @@ class Candidate(Base):
     @aptitude_scores.setter
     def aptitude_scores(self, value):
         self.aptitude_scores_json = json.dumps(value)
+
+    @property
+    def profile(self):
+        if self.profile_json and self.profile_json.strip() not in ("{}", ""):
+            try:
+                parsed = json.loads(self.profile_json)
+                if parsed and isinstance(parsed, dict) and "education" in parsed:
+                    return parsed
+            except Exception:
+                pass
+        from app.core.profiler import extract_candidate_profile
+        extracted = extract_candidate_profile(self.raw_text or "", self.entities, self.skills)
+        if self.name:
+            extracted["name"] = self.name
+        if self.email:
+            extracted["email"] = self.email
+        if self.phone:
+            extracted["phone"] = self.phone
+        return extracted
+
+    @profile.setter
+    def profile(self, value):
+        self.profile_json = json.dumps(value)
 
 
 class Resume(Base):
@@ -226,3 +257,191 @@ class SkillAssessment(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     candidate = relationship("Candidate", backref="skill_assessments")
+
+
+class CandidateStatusHistory(Base):
+    __tablename__ = "candidate_status_history"
+
+    id = Column(Text, primary_key=True)
+    candidate_id = Column(Text, ForeignKey("candidates.id"), nullable=False)
+    job_id = Column(Text, ForeignKey("jobs.id"), nullable=True)
+    from_status = Column(Text, nullable=True)
+    to_status = Column(Text, nullable=False)
+    changed_by = Column(Text, nullable=True)  # user id, recruiter name, or "system"
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    candidate = relationship("Candidate", backref="status_history")
+    job = relationship("Job")
+
+
+class InterviewSession(Base):
+    __tablename__ = "interview_sessions"
+
+    id = Column(Text, primary_key=True)
+    candidate_id = Column(Text, ForeignKey("candidates.id"), nullable=False)
+    job_id = Column(Text, ForeignKey("jobs.id"), nullable=False)
+    interviewer_id = Column(Text, ForeignKey("users.id"), nullable=True)
+    interview_type = Column(Text, default="mixed")  # technical, behavioral, situational, resume-based, mixed
+    status = Column(Text, default="in_progress")  # scheduled, in_progress, completed, cancelled
+    question_count = Column(Integer, default=5)
+    current_question_index = Column(Integer, default=0)
+    overall_score = Column(Float, default=0.0)
+    technical_score = Column(Float, default=0.0)
+    behavioral_score = Column(Float, default=0.0)
+    questions_json = Column(Text, default="[]")
+    summary_report_json = Column(Text, default="{}")
+    started_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    candidate = relationship("Candidate", backref="interview_sessions")
+    job = relationship("Job", backref="interview_sessions")
+    interviewer = relationship("User", foreign_keys=[interviewer_id])
+    responses = relationship("InterviewResponse", back_populates="session", cascade="all, delete-orphan", order_by="InterviewResponse.question_index")
+
+    @property
+    def questions(self):
+        return json.loads(self.questions_json) if self.questions_json else []
+
+    @questions.setter
+    def questions(self, value):
+        self.questions_json = json.dumps(value)
+
+    @property
+    def summary_report(self):
+        return json.loads(self.summary_report_json) if self.summary_report_json else {}
+
+    @summary_report.setter
+    def summary_report(self, value):
+        self.summary_report_json = json.dumps(value)
+
+
+class InterviewResponse(Base):
+    __tablename__ = "interview_responses"
+
+    id = Column(Text, primary_key=True)
+    session_id = Column(Text, ForeignKey("interview_sessions.id"), nullable=False)
+    question_index = Column(Integer, nullable=False)
+    question = Column(Text, nullable=False)
+    question_type = Column(Text, default="technical")
+    difficulty = Column(Text, default="intermediate")
+    skill = Column(Text, default="")
+    expected_focus_json = Column(Text, default="[]")
+    candidate_answer = Column(Text, default="")
+    score = Column(Float, default=0.0)
+    evaluation_json = Column(Text, default="{}")
+    submitted_at = Column(DateTime, default=datetime.utcnow)
+
+    session = relationship("InterviewSession", back_populates="responses")
+
+    @property
+    def expected_focus(self):
+        return json.loads(self.expected_focus_json) if self.expected_focus_json else []
+
+    @expected_focus.setter
+    def expected_focus(self, value):
+        self.expected_focus_json = json.dumps(value)
+
+    @property
+    def evaluation(self):
+        return json.loads(self.evaluation_json) if self.evaluation_json else {}
+
+    @evaluation.setter
+    def evaluation(self, value):
+        self.evaluation_json = json.dumps(value)
+
+
+class VoiceScreeningSession(Base):
+    __tablename__ = "voice_screening_sessions"
+
+    id = Column(Text, primary_key=True)
+    candidate_id = Column(Text, ForeignKey("candidates.id"), nullable=False)
+    job_id = Column(Text, ForeignKey("jobs.id"), nullable=True)
+    interviewer_id = Column(Text, ForeignKey("users.id"), nullable=True)
+    status = Column(Text, default="ready")  # ready, in_progress, completed, cancelled
+    question_count = Column(Integer, default=3)
+    current_question_index = Column(Integer, default=0)
+    questions_json = Column(Text, default="[]")
+    
+    # 5-Dimensional Assessment Scores (0-100)
+    overall_score = Column(Float, default=0.0)
+    technical_score = Column(Float, default=0.0)
+    communication_score = Column(Float, default=0.0)
+    relevance_score = Column(Float, default=0.0)
+    completeness_score = Column(Float, default=0.0)
+    role_knowledge_score = Column(Float, default=0.0)
+    recommendation = Column(Text, default="")  # Proceed to Next Round / Requires Further Review / Do Not Proceed at This Stage
+    summary_report_json = Column(Text, default="{}")
+    duration_seconds = Column(Integer, default=0)
+    audio_stored = Column(Boolean, default=False)
+    
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    candidate = relationship("Candidate", backref="voice_screening_sessions")
+    job = relationship("Job", backref="voice_screening_sessions")
+    interviewer = relationship("User", foreign_keys=[interviewer_id])
+    responses = relationship(
+        "VoiceScreeningResponse",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="VoiceScreeningResponse.question_index"
+    )
+
+    @property
+    def questions(self):
+        return json.loads(self.questions_json) if self.questions_json else []
+
+    @questions.setter
+    def questions(self, value):
+        self.questions_json = json.dumps(value)
+
+    @property
+    def summary_report(self):
+        return json.loads(self.summary_report_json) if self.summary_report_json else {}
+
+    @summary_report.setter
+    def summary_report(self, value):
+        self.summary_report_json = json.dumps(value)
+
+
+class VoiceScreeningResponse(Base):
+    __tablename__ = "voice_screening_responses"
+
+    id = Column(Text, primary_key=True)
+    session_id = Column(Text, ForeignKey("voice_screening_sessions.id"), nullable=False)
+    question_index = Column(Integer, nullable=False)
+    question = Column(Text, nullable=False)
+    question_type = Column(Text, default="technical")
+    skill = Column(Text, default="")
+    candidate_response = Column(Text, default="")  # Transcribed speech
+    duration_seconds = Column(Float, default=0.0)
+    score = Column(Float, default=0.0)
+    evaluation_json = Column(Text, default="{}")
+    submitted_at = Column(DateTime, default=datetime.utcnow)
+
+    session = relationship("VoiceScreeningSession", back_populates="responses")
+
+    @property
+    def evaluation(self):
+        return json.loads(self.evaluation_json) if self.evaluation_json else {}
+
+    @evaluation.setter
+    def evaluation(self, value):
+        self.evaluation_json = json.dumps(value)
+
+
+class UserFeedback(Base):
+    __tablename__ = "user_feedbacks"
+
+    id = Column(Text, primary_key=True)
+    user_id = Column(Text, ForeignKey("users.id"), nullable=True)
+    user_role = Column(Text, default="recruiter")
+    rating = Column(Integer, nullable=False)  # 1 to 5
+    feedback_text = Column(Text, default="")
+    feature = Column(Text, default="recruitment_dashboard")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+

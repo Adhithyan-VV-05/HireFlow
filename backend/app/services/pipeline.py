@@ -51,9 +51,13 @@ def process_resume(file_content: bytes, filename: str, db_session, existing_cand
     if not text.strip():
         raise ValueError("Could not extract text from the uploaded file")
 
-    # Layer 2: NER
+    # Layer 2: NER & Profile Extraction
     entities = extract_entities(text)
     skills = entities.get("SKILL", [])
+
+    # Extract structured candidate profile (education, experience, projects, certs)
+    from app.core.profiler import extract_candidate_profile
+    profile_data = extract_candidate_profile(text, entities=entities, skills=skills)
 
     # Layer 3: Chunk
     chunks = split_sections(text, entities)
@@ -62,8 +66,9 @@ def process_resume(file_content: bytes, filename: str, db_session, existing_cand
     embeddings = embed_chunks(chunks)
 
     # Extract candidate info
-    name = _extract_name(text)
-    email = _extract_email(text)
+    name = profile_data.get("name") or _extract_name(text)
+    email = profile_data.get("email") or _extract_email(text)
+    phone = profile_data.get("phone", "")
 
     # Calculate initial aptitude scores
     aptitude_scores = _compute_aptitude_scores(skills[:10], text)
@@ -76,11 +81,13 @@ def process_resume(file_content: bytes, filename: str, db_session, existing_cand
         if candidate:
             candidate.name = name
             candidate.email = email
+            if phone:
+                candidate.phone = phone
             candidate.skills_json = json.dumps(skills)
             candidate.entities_json = json.dumps(entities)
             candidate.aptitude_scores_json = json.dumps(aptitude_scores)
+            candidate.profile_json = json.dumps(profile_data)
             candidate.raw_text = text
-            # candidate.created_at = datetime.utcnow() # Keep original join date?
         else:
             # Fallback if ID not found
             candidate_id = temp_id
@@ -88,9 +95,11 @@ def process_resume(file_content: bytes, filename: str, db_session, existing_cand
                 id=candidate_id,
                 name=name,
                 email=email,
+                phone=phone,
                 skills_json=json.dumps(skills),
                 entities_json=json.dumps(entities),
                 aptitude_scores_json=json.dumps(aptitude_scores),
+                profile_json=json.dumps(profile_data),
                 raw_text=text,
                 created_at=datetime.utcnow(),
             )
@@ -100,9 +109,11 @@ def process_resume(file_content: bytes, filename: str, db_session, existing_cand
             id=candidate_id,
             name=name,
             email=email,
+            phone=phone,
             skills_json=json.dumps(skills),
             entities_json=json.dumps(entities),
             aptitude_scores_json=json.dumps(aptitude_scores),
+            profile_json=json.dumps(profile_data),
             raw_text=text,
             created_at=datetime.utcnow(),
         )
@@ -116,6 +127,9 @@ def process_resume(file_content: bytes, filename: str, db_session, existing_cand
         chunk_text = chunks.get(chunk_type, "")
 
         start_id = add_vectors(embedding.reshape(1, -1))
+
+        # Clear any stale or duplicate vector_id entry in SQLite
+        db_session.query(FaissMetadata).filter(FaissMetadata.vector_id == start_id).delete(synchronize_session=False)
 
         metadata = {
             "skills_tags": skills,
@@ -147,9 +161,11 @@ def process_resume(file_content: bytes, filename: str, db_session, existing_cand
         "candidate_id": candidate_id,
         "name": name,
         "email": email,
+        "phone": phone,
         "skills": skills,
         "job_titles": entities.get("JOB_TITLE", []),
         "entities": entities,
+        "profile": profile_data,
         "chunk_lengths": {k: len(v) for k, v in chunks.items()},
         "aptitude_scores": aptitude_scores,
         "file_name": filename,

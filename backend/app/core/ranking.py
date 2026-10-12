@@ -22,6 +22,16 @@ def _extract_job_skills(job_description: str) -> Set[str]:
         if re.search(r'\b' + re.escape(skill) + r'\b', text_lower):
             found_skills.add(_normalize_skill(skill))
 
+    # Also parse explicit skill lists or comma-separated lines
+    lines = job_description.split('\n')
+    for line in lines:
+        if any(h in line.lower() for h in ["required skills", "skills:", "skill requirements", "required:"]):
+            parts = re.split(r'[:,;,\n]', line)
+            for part in parts:
+                clean = part.strip()
+                if clean and len(clean) < 35 and not any(h in clean.lower() for h in ["required", "skills", "description"]):
+                    found_skills.add(_normalize_skill(clean))
+
     return found_skills
 
 
@@ -31,24 +41,26 @@ def _compute_skill_overlap(candidate_skills: List[str], job_skills: Set[str]) ->
     Returns:
         Dict with matched_skills, match_ratio, missing_skills.
     """
-    candidate_set = {s.lower() for s in candidate_skills}
-    job_set = {s.lower() for s in job_skills}
+    candidate_set = {s.lower().strip() for s in candidate_skills}
+    job_set = {s.lower().strip() for s in job_skills}
 
     matched = candidate_set & job_set
     missing = job_set - candidate_set
     extra = candidate_set - job_set
 
-    # Match ratio: what % of required skills does the candidate have
     match_ratio = len(matched) / len(job_set) if job_set else 0.0
 
-    # Map back to original casing
-    matched_original = [s for s in candidate_skills if s.lower() in matched]
-    missing_original = [s for s in job_skills if s.lower() in missing]
+    job_skill_map = {s.lower().strip(): s for s in job_skills}
+    cand_skill_map = {s.lower().strip(): s for s in candidate_skills}
+
+    matched_original = [cand_skill_map.get(s, job_skill_map.get(s, s.title())) for s in matched]
+    missing_original = [job_skill_map.get(s, s.title()) for s in missing]
+    extra_original = [cand_skill_map.get(s, s.title()) for s in extra]
 
     return {
-        "matched_skills": matched_original,
-        "missing_skills": missing_original,
-        "extra_skills": [s for s in candidate_skills if s.lower() in extra],
+        "matched_skills": sorted(matched_original),
+        "missing_skills": sorted(missing_original),
+        "extra_skills": sorted(extra_original),
         "match_count": len(matched),
         "required_count": len(job_set),
         "match_ratio": round(match_ratio, 4),
@@ -119,39 +131,54 @@ def apply_skill_boost(
             is_verified = len(skill_scores) >= 1
             
             # Merit bonus based on skill test performance
-            merit_bonus = 0.0
-            if skill_scores:
-                avg_skill_score = sum(skill_scores.values()) / len(skill_scores)
-                merit_bonus = 0.15 * (avg_skill_score / 100)
-            
-            # Verified status bonus
-            verified_bonus = 0.05 if is_verified else 0.0
-
-            # Get aptitude scores from candidate profile
-            aptitude_scores = db_candidate.aptitude_scores
-
-            # Compute final score: 35% search relevance + 45% skill match + 15% merit + 5% verified
+            # Calculate Resume-JD Match Score (35% Semantic Relevance + 65% Skill Overlap)
             search_score = cand.get("final_score", cand.get("rrf_score", 0))
             skill_ratio = overlap["match_ratio"]
+            resume_match = (0.35 * search_score) + (0.65 * skill_ratio)
+            resume_match = min(1.0, max(0.0, resume_match))
 
-            # Add small aptitude bonus (up to 0.05)
-            apt_bonus = 0.0
-            if aptitude_scores and overlap["matched_skills"]:
-                matching_apts = []
-                for skill in overlap["matched_skills"]:
-                    skill_lower = skill.lower()
-                    for apt_key, apt_val in aptitude_scores.items():
-                        if skill_lower in apt_key.lower() or apt_key.lower() in skill_lower:
-                            matching_apts.append(apt_val)
-                            break
-                if matching_apts:
-                    apt_bonus = 0.05 * (sum(matching_apts) / len(matching_apts))
+            # Calculate Hiring Score based on test attendance
+            has_attended_test = is_verified and len(skill_scores) > 0
+            if has_attended_test:
+                avg_test_score = (sum(skill_scores.values()) / len(skill_scores)) / 100.0
+                test_match_pct = round(avg_test_score * 100, 1)
+                # Combine 60% Resume Match + 40% Verified Test Performance
+                final_score = (0.60 * resume_match) + (0.40 * avg_test_score)
+            else:
+                test_match_pct = None
+                # 100% Resume Match when test is not attended
+                final_score = resume_match
 
-            final_score = (0.35 * search_score) + (0.45 * skill_ratio) + merit_bonus + verified_bonus + apt_bonus
-            final_score = min(final_score, 1.0)  # Cap at 1.0
+            final_score = min(1.0, max(0.0, final_score))
+            hiring_score_pct = round(final_score * 100, 1)
 
-            # Populate candidate data
+            # Determine Hiring Recommendation label
+            if has_attended_test:
+                if hiring_score_pct >= 85:
+                    recommendation = "Strong Hire (Test Verified)"
+                elif hiring_score_pct >= 70:
+                    recommendation = "Recommended Hire"
+                elif hiring_score_pct >= 55:
+                    recommendation = "Potential Candidate"
+                else:
+                    recommendation = "Low Fit"
+            else:
+                if hiring_score_pct >= 85:
+                    recommendation = "Strong Resume Match"
+                elif hiring_score_pct >= 70:
+                    recommendation = "Good Resume Match"
+                elif hiring_score_pct >= 55:
+                    recommendation = "Potential Resume Fit"
+                else:
+                    recommendation = "Low Resume Fit"
+
+            # Populate candidate payload
             cand["final_score"] = round(final_score, 4)
+            cand["hiring_score"] = hiring_score_pct
+            cand["hiring_recommendation"] = recommendation
+            cand["resume_match_score"] = round(resume_match * 100, 1)
+            cand["test_match_score"] = test_match_pct
+            cand["has_attended_test"] = has_attended_test
             cand["skill_match_ratio"] = overlap["match_ratio"]
             cand["matched_skills"] = overlap["matched_skills"]
             cand["missing_skills"] = overlap["missing_skills"]
@@ -163,7 +190,6 @@ def apply_skill_boost(
             cand["skills"] = candidate_skills
             cand["is_verified"] = is_verified
             cand["skill_scores"] = skill_scores
-            cand["aptitude_scores"] = aptitude_scores
             cand["entities"] = db_candidate.entities
 
             # Also attach user account info if linked
@@ -178,6 +204,9 @@ def apply_skill_boost(
 
         # Sort by final_score descending
         candidates.sort(key=lambda x: x.get("final_score", 0), reverse=True)
+        for rank_idx, cand in enumerate(candidates, start=1):
+            cand["role_rank"] = rank_idx
+            cand["total_candidates_evaluated"] = len(candidates)
         return candidates
 
     finally:

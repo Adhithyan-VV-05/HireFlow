@@ -7,6 +7,8 @@ import CandidateCard from '../components/CandidateCard';
 import AptitudeChatbot from './AptitudeChatbot';
 import ResumeViewer from '../components/ResumeViewer';
 import SkillTestModal from '../components/SkillTestModal';
+import InterviewSimulationRoom from '../components/InterviewSimulationRoom';
+import VoiceScreeningSection from '../components/VoiceScreeningSection';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 export default function CandidatePortal() {
@@ -28,6 +30,8 @@ export default function CandidatePortal() {
     // Interviews state (Unified)
     const [interviews, setInterviews] = useState([]); // AI Interviews
     const [scheduledInterviews, setScheduledInterviews] = useState([]); // Video Interviews/Offers
+    const [simulations, setSimulations] = useState([]); // Milestone 3 AI Simulations
+    const [activeSimSession, setActiveSimSession] = useState(null);
     const [interviewsLoading, setInterviewsLoading] = useState(false);
 
     // Active AI interview state
@@ -86,6 +90,13 @@ export default function CandidatePortal() {
             setInterviews(data.interviews || []);
             const scheduled = await api.getScheduledInterviews();
             setScheduledInterviews(scheduled || []);
+
+            // Fetch AI Simulations
+            const profData = await api.getMyProfile().catch(() => null);
+            if (profData?.profile?.candidate_id) {
+                const simData = await api.getCandidateSimulations(profData.profile.candidate_id).catch(() => ({ simulations: [] }));
+                setSimulations(simData.simulations || []);
+            }
         } catch (err) { console.error(err); }
         finally { setInterviewsLoading(false); }
     };
@@ -177,6 +188,18 @@ export default function CandidatePortal() {
         } catch (err) { alert(err.message); }
     };
 
+    const handleLaunchSimulation = (jobId = null, jobTitle = null, existingSessionId = null, numQuestions = 5) => {
+        const job = allJobs.find(j => j.id === jobId) || (allJobs.length > 0 ? allJobs[0] : null);
+        setActiveSimSession({
+            sessionId: existingSessionId,
+            jobId: jobId || job?.id,
+            jobTitle: jobTitle || job?.title || 'Senior ML Engineer',
+            interviewType: 'mixed',
+            numQuestions: numQuestions || 5
+        });
+        setActiveTab('active-simulation');
+    };
+
     const handleRespondInvitation = async (interviewId, response) => {
         try {
             await api.scheduleConfirm({ interview_id: interviewId, response });
@@ -218,6 +241,83 @@ export default function CandidatePortal() {
         }
     };
 
+    const downloadSkillGapReport = () => {
+        if (!upskillingData) return;
+        const dateStr = new Date().toLocaleString();
+        const candidateName = profile?.name || user?.name || 'Candidate';
+        const candidateEmail = profile?.email || user?.email || 'N/A';
+        const jobTitle = upskillingData.selected_job ? upskillingData.selected_job.title : 'General Skill Path';
+        const matchPct = upskillingData.skill_match_percentage || 0;
+
+        const matched = upskillingData.matched_skills?.length > 0 ? upskillingData.matched_skills.join(', ') : 'None matched';
+        const gaps = upskillingData.skill_gaps?.length > 0 ? upskillingData.skill_gaps.join(', ') : 'No gaps detected!';
+
+        let coursesText = '';
+        if (upskillingData.recommendations && upskillingData.recommendations.length > 0) {
+            coursesText = upskillingData.recommendations.map(rec => {
+                const courseList = rec.courses?.map(c => `    * Course: ${c.title}\n      Provider: ${c.provider} | Level: ${c.level || 'Intermediate'} | Duration: ${c.duration || '4-6 weeks'}\n      URL: ${c.url}`).join('\n') || '    No courses listed.';
+                return `Skill Gap Area: ${rec.skill} (${rec.category || 'General'})\n${courseList}`;
+            }).join('\n\n');
+        } else {
+            coursesText = 'No specific upskilling courses required at this time.';
+        }
+
+        let skillScoresText = 'No verified skill test scores recorded.';
+        if (profile?.skill_scores && Object.keys(profile.skill_scores).length > 0) {
+            skillScoresText = Object.entries(profile.skill_scores)
+                .map(([s, val]) => `  - ${s}: ${val.toFixed(0)}%`)
+                .join('\n');
+        }
+
+        const report = `================================================================================
+             HIREFLOW AI - CANDIDATE SKILL GAP & JOB MATCHING REPORT
+================================================================================
+Generated On    : ${dateStr}
+Candidate Name  : ${candidateName}
+Email Address   : ${candidateEmail}
+Target Job Role : ${jobTitle}
+Skill Match %   : ${matchPct}%
+
+--------------------------------------------------------------------------------
+1. SKILL MATCH & GAP SUMMARY
+--------------------------------------------------------------------------------
+Matched Skills in Resume (${upskillingData.matched_skills?.length || 0}):
+  ${matched}
+
+Identified Skill Gaps (${upskillingData.skill_gaps?.length || 0}):
+  ${gaps}
+
+--------------------------------------------------------------------------------
+2. AI-RECOMMENDED UPSKILLING & LEARNING PATH
+--------------------------------------------------------------------------------
+${coursesText}
+
+--------------------------------------------------------------------------------
+3. YOUR VERIFIED SKILL TEST SCORES
+--------------------------------------------------------------------------------
+${skillScoresText}
+
+--------------------------------------------------------------------------------
+4. CURRENT EXTRACTED PROFILE SKILLS
+--------------------------------------------------------------------------------
+${profile?.skills ? profile.skills.join(', ') : 'None'}
+
+================================================================================
+               HIREFLOW AI - PERSONALIZED CAREER REPORT
+================================================================================`;
+
+        const fileName = `Skill_Gap_Report_${jobTitle.replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
+        const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <div className="portal">
             <header className="portal-header">
@@ -236,6 +336,7 @@ export default function CandidatePortal() {
                 <button className={`tab-btn ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>👤 Profile</button>
                 <button className={`tab-btn ${activeTab === 'upload' ? 'active' : ''}`} onClick={() => setActiveTab('upload')}>📄 Upload</button>
                 <button className={`tab-btn ${activeTab === 'interviews' ? 'active' : ''}`} onClick={() => setActiveTab('interviews')}>🎙️ Interviews</button>
+                <button className={`tab-btn ${activeTab === 'voice' ? 'active' : ''}`} onClick={() => setActiveTab('voice')}>🗣️ Voice Screening</button>
                 <button className={`tab-btn ${activeTab === 'jobs' ? 'active' : ''}`} onClick={() => setActiveTab('jobs')}>💼 Jobs</button>
                 <button className={`tab-btn ${activeTab === 'upskilling' ? 'active' : ''}`} onClick={() => {
                     setActiveTab('upskilling');
@@ -269,6 +370,107 @@ export default function CandidatePortal() {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Milestone 3: Scheduled / Active Interview Card in Candidate Profile */}
+                        {simulations.filter(s => s.status === 'scheduled' || s.status === 'in_progress').map(sim => (
+                            <div key={sim.session_id} className="card glass-card" style={{
+                                marginTop: '1.5rem',
+                                marginBottom: '2rem',
+                                padding: '1.75rem',
+                                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(236, 72, 153, 0.15) 100%)',
+                                border: '1px solid rgba(236, 72, 153, 0.4)',
+                                borderRadius: '16px',
+                                boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4)'
+                            }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                        <div style={{
+                                            width: '42px',
+                                            height: '42px',
+                                            borderRadius: '12px',
+                                            background: 'linear-gradient(135deg, #6366f1, #ec4899)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            fontSize: '1.4rem'
+                                        }}>
+                                            🎙️
+                                        </div>
+                                        <div>
+                                            <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#f472b6', fontWeight: 800 }}>
+                                                INTERVIEW {sim.status === 'scheduled' ? 'INVITATION' : 'SESSION'}
+                                            </span>
+                                            <h3 style={{ margin: 0, fontSize: '1.35rem', color: '#fff' }}>{sim.job_title || 'Role Interview'}</h3>
+                                        </div>
+                                    </div>
+                                    <span style={{
+                                        background: sim.status === 'scheduled' ? 'rgba(251, 191, 36, 0.2)' : 'rgba(236, 72, 153, 0.25)',
+                                        color: sim.status === 'scheduled' ? '#fbbf24' : '#f472b6',
+                                        border: `1px solid ${sim.status === 'scheduled' ? 'rgba(251, 191, 36, 0.4)' : '#ec4899'}`,
+                                        padding: '0.35rem 0.85rem',
+                                        borderRadius: '8px',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 700,
+                                        textTransform: 'uppercase'
+                                    }}>
+                                        Status: {sim.status === 'scheduled' ? 'Scheduled' : 'In Progress'}
+                                    </span>
+                                </div>
+
+                                <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                                    gap: '1rem',
+                                    background: 'rgba(0, 0, 0, 0.25)',
+                                    padding: '1rem',
+                                    borderRadius: '12px',
+                                    marginBottom: '1.5rem',
+                                    border: '1px solid rgba(255, 255, 255, 0.05)'
+                                }}>
+                                    <div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--gray-400)' }}>Role</div>
+                                        <div style={{ fontWeight: 700, color: '#fff', fontSize: '0.95rem' }}>{sim.job_title || 'Technical Role'}</div>
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--gray-400)' }}>Company</div>
+                                        <div style={{ fontWeight: 700, color: '#fff', fontSize: '0.95rem' }}>HireFlow</div>
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--gray-400)' }}>Questions</div>
+                                        <div style={{ fontWeight: 700, color: '#fff', fontSize: '0.95rem' }}>{sim.question_count || 10} Questions</div>
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--gray-400)' }}>Duration</div>
+                                        <div style={{ fontWeight: 700, color: '#fff', fontSize: '0.95rem' }}>~30 minutes</div>
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--gray-400)' }}>Scheduled</div>
+                                        <div style={{ fontWeight: 700, color: '#fff', fontSize: '0.95rem' }}>
+                                            {sim.created_at ? new Date(sim.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }) : '23 September 2026'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <span style={{ fontSize: '0.85rem', color: 'var(--gray-300)' }}>
+                                        {sim.status === 'scheduled' ? '⚡ Complete question set ready. Click to begin.' : `Question ${(sim.current_question_index || 0) + 1} of ${sim.question_count} in progress.`}
+                                    </span>
+                                    <button
+                                        className="hub-btn hub-btn-primary"
+                                        style={{
+                                            padding: '0.75rem 1.75rem',
+                                            fontSize: '1rem',
+                                            fontWeight: 800,
+                                            background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)',
+                                            boxShadow: '0 4px 20px rgba(236, 72, 153, 0.4)'
+                                        }}
+                                        onClick={() => handleLaunchSimulation(sim.job_id, sim.job_title, sim.session_id, sim.question_count)}
+                                    >
+                                        {sim.status === 'scheduled' ? '🚀 [ Start Interview ]' : 'Continue Interview ➔'}
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
 
                         <div className="profile-grid">
                             {/* Left Column: Stats & Skills */}
@@ -422,6 +624,159 @@ export default function CandidatePortal() {
                                         )}
                                     </div>
                                 </div>
+
+                                {/* Structured Academic & Education Background */}
+                                <div className="card glass-card" style={{ marginTop: '1.5rem' }}>
+                                    <div className="card-header-fancy">
+                                        <h3>🎓 Academic & Education Background</h3>
+                                        <span className="header-icon">🏛️</span>
+                                    </div>
+                                    <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                        {(profile?.education && profile.education.length > 0) ? (
+                                            profile.education.map((edu, idx) => (
+                                                <div key={idx} style={{
+                                                    padding: '1rem',
+                                                    background: 'rgba(255, 255, 255, 0.02)',
+                                                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                                                    borderRadius: '10px'
+                                                }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                                        <div>
+                                                            <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#f8fafc' }}>{edu.degree || 'Degree'}</div>
+                                                            <div style={{ color: 'var(--accent-400)', fontSize: '0.85rem' }}>{edu.institution || 'University'}</div>
+                                                        </div>
+                                                        {edu.year && (
+                                                            <span style={{ fontSize: '0.75rem', background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8', padding: '0.2rem 0.6rem', borderRadius: '6px', fontWeight: 600 }}>
+                                                                📅 {edu.year}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {edu.major && (
+                                                        <div style={{ fontSize: '0.8rem', color: 'var(--gray-400)', marginTop: '0.4rem' }}>
+                                                            Major: <span style={{ color: 'var(--gray-300)' }}>{edu.major}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className="muted-text">Upload your resume to automatically extract structured education records.</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Structured Professional Work Experience */}
+                                <div className="card glass-card" style={{ marginTop: '1.5rem' }}>
+                                    <div className="card-header-fancy">
+                                        <h3>💼 Professional Work Experience</h3>
+                                        <span className="header-icon">🏢</span>
+                                    </div>
+                                    <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                        {(profile?.experience && profile.experience.length > 0) ? (
+                                            profile.experience.map((exp, idx) => (
+                                                <div key={idx} style={{
+                                                    padding: '1rem',
+                                                    background: 'rgba(255, 255, 255, 0.02)',
+                                                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                                                    borderRadius: '10px'
+                                                }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                                        <div>
+                                                            <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#f8fafc' }}>{exp.title || 'Role'}</div>
+                                                            <div style={{ color: 'var(--accent-400)', fontSize: '0.85rem' }}>{exp.company || 'Company'}</div>
+                                                        </div>
+                                                        {exp.duration && (
+                                                            <span style={{ fontSize: '0.75rem', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', padding: '0.2rem 0.6rem', borderRadius: '6px', fontWeight: 600 }}>
+                                                                ⏱️ {exp.duration}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {exp.responsibilities && exp.responsibilities.length > 0 && (
+                                                        <ul style={{ margin: '0.6rem 0 0 1.2rem', padding: 0, fontSize: '0.8rem', color: 'var(--gray-400)', lineHeight: '1.5' }}>
+                                                            {exp.responsibilities.slice(0, 3).map((r, ri) => (
+                                                                <li key={ri}>{r}</li>
+                                                            ))}
+                                                        </ul>
+                                                    )}
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className="muted-text">Upload your resume to automatically extract structured employment experience.</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Structured Technical Projects */}
+                                <div className="card glass-card" style={{ marginTop: '1.5rem' }}>
+                                    <div className="card-header-fancy">
+                                        <h3>🚀 Technical Projects & Portfolios</h3>
+                                        <span className="header-icon">💻</span>
+                                    </div>
+                                    <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                        {(profile?.projects && profile.projects.length > 0) ? (
+                                            profile.projects.map((proj, idx) => (
+                                                <div key={idx} style={{
+                                                    padding: '1rem',
+                                                    background: 'rgba(255, 255, 255, 0.02)',
+                                                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                                                    borderRadius: '10px'
+                                                }}>
+                                                    <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#f8fafc' }}>{proj.name}</div>
+                                                    {proj.description && (
+                                                        <p style={{ fontSize: '0.82rem', color: 'var(--gray-400)', margin: '0.4rem 0', lineHeight: '1.5' }}>
+                                                            {proj.description}
+                                                        </p>
+                                                    )}
+                                                    {proj.tech_stack && proj.tech_stack.length > 0 && (
+                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.5rem' }}>
+                                                            {proj.tech_stack.map((t, ti) => (
+                                                                <span key={ti} style={{ fontSize: '0.72rem', background: 'rgba(255, 255, 255, 0.06)', color: 'var(--gray-300)', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
+                                                                    {t}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className="muted-text">Upload your resume to automatically extract project portfolios.</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Structured Certifications & Credentials */}
+                                <div className="card glass-card" style={{ marginTop: '1.5rem' }}>
+                                    <div className="card-header-fancy">
+                                        <h3>📜 Certifications & Credentials</h3>
+                                        <span className="header-icon">🎖️</span>
+                                    </div>
+                                    <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                        {(profile?.certifications && profile.certifications.length > 0) ? (
+                                            profile.certifications.map((cert, idx) => (
+                                                <div key={idx} style={{
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'center',
+                                                    padding: '0.85rem 1rem',
+                                                    background: 'rgba(255, 255, 255, 0.02)',
+                                                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                                                    borderRadius: '10px'
+                                                }}>
+                                                    <div>
+                                                        <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#f8fafc' }}>{cert.name}</div>
+                                                        <div style={{ fontSize: '0.78rem', color: 'var(--gray-400)' }}>Issued by: {cert.issuer || 'Verified Provider'}</div>
+                                                    </div>
+                                                    {cert.year && (
+                                                        <span style={{ fontSize: '0.72rem', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', padding: '0.2rem 0.5rem', borderRadius: '6px', fontWeight: 600 }}>
+                                                            {cert.year}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className="muted-text">Upload your resume to automatically extract certifications.</p>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Right Column: Activity & Summary */}
@@ -437,9 +792,18 @@ export default function CandidatePortal() {
                                                 <div className="activity-status-dot" data-status={app.status}></div>
                                                 <div className="activity-details">
                                                     <p className="activity-title">Applied to <strong>{app.job_title}</strong></p>
-                                                    <div className="activity-meta">
-                                                        <span className={`status-pill pill-${app.status}`}>{app.status}</span>
-                                                        <span className="activity-date">{new Date(app.created_at).toLocaleDateString()}</span>
+                                                    <div className="activity-meta" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                            <span className={`status-pill pill-${app.status}`}>{app.status}</span>
+                                                            <span className="activity-date">{new Date(app.created_at).toLocaleDateString()}</span>
+                                                        </div>
+                                                        <button
+                                                            className="hub-btn hub-btn-primary"
+                                                            style={{ padding: '0.15rem 0.5rem', fontSize: '0.68rem', borderRadius: '4px' }}
+                                                            onClick={() => setActiveTab('voice')}
+                                                        >
+                                                            🗣️ Voice Test
+                                                        </button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -481,6 +845,22 @@ export default function CandidatePortal() {
                                     <div className="summary-stat-row">
                                         <span>Interviews Done</span>
                                         <strong>{scheduledInterviews.filter(i => i.status === 'completed').length}</strong>
+                                    </div>
+                                    <div className="summary-stat-row">
+                                        <span>🗣️ Voice Screening</span>
+                                        {profile?.screening_score ? (
+                                            <strong style={{ color: profile.screening_score >= 75 ? 'var(--emerald-400)' : 'var(--amber-400)' }}>
+                                                {profile.screening_score.toFixed(0)}% ({profile.screening_recommendation || 'Screened'})
+                                            </strong>
+                                        ) : (
+                                            <button
+                                                className="hub-btn hub-btn-primary"
+                                                style={{ padding: '0.2rem 0.6rem', fontSize: '0.72rem', borderRadius: '6px' }}
+                                                onClick={() => setActiveTab('voice')}
+                                            >
+                                                Take Voice Test ➔
+                                            </button>
+                                        )}
                                     </div>
                                     <div className="summary-stat-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.65rem' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
@@ -681,12 +1061,147 @@ export default function CandidatePortal() {
                                     </div>
                                 )}
 
-                                {/* Section 3: AI Screenings */}
+                                {/* Section 3: AI Screenings & Full Simulations */}
                                 <div className="hub-section">
                                     <div className="hub-section-header">
-                                        <h3 className="hub-section-title"><span>🤖</span> AI Technical Screenings</h3>
-                                        <button className="hub-btn hub-btn-secondary" style={{ width: 'auto', padding: '0.5rem 1rem' }} onClick={() => startAIInterview(null)}>
-                                            + Start Practice Session
+                                        <div>
+                                            <h3 className="hub-section-title"><span>🤖</span> AI Interview Simulations (Milestone 3)</h3>
+                                            <p className="muted-text" style={{ fontSize: '0.85rem' }}>
+                                                Interactive question-by-question technical screenings with real-time AI scoring and ATS synchronization.
+                                            </p>
+                                        </div>
+                                        <button
+                                            className="hub-btn hub-btn-primary"
+                                            style={{ width: 'auto', padding: '0.55rem 1.25rem', whiteSpace: 'nowrap' }}
+                                            onClick={() => handleLaunchSimulation(null, 'Senior ML Engineer')}
+                                        >
+                                            🚀 Start AI Interview Simulation
+                                        </button>
+                                    </div>
+
+                                    {/* Simulations Grid */}
+                                    <div className="hub-grid" style={{ marginBottom: '2rem' }}>
+                                        {simulations.length === 0 ? (
+                                            <div className="card glass-card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '2.5rem', borderStyle: 'dashed' }}>
+                                                <p className="muted-text" style={{ margin: 0, marginBottom: '0.75rem' }}>
+                                                    No AI interview simulations attempted yet.
+                                                </p>
+                                                <button
+                                                    className="hub-btn hub-btn-primary"
+                                                    style={{ display: 'inline-block' }}
+                                                    onClick={() => handleLaunchSimulation(null, 'Senior ML Engineer')}
+                                                >
+                                                    Start Simulation for Senior ML Engineer
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            simulations.map(sim => (
+                                                <div key={sim.session_id} className="hub-card">
+                                                    <span className={`hub-badge ${sim.status === 'completed' ? 'tag-ai' : sim.status === 'scheduled' ? 'tag-invitation' : 'tag-video'}`} style={{
+                                                        background: sim.status === 'scheduled' ? 'rgba(251, 191, 36, 0.2)' : undefined,
+                                                        color: sim.status === 'scheduled' ? '#fbbf24' : undefined,
+                                                        borderColor: sim.status === 'scheduled' ? 'rgba(251, 191, 36, 0.4)' : undefined
+                                                    }}>
+                                                        {sim.status === 'completed' ? '✓ Evaluated & Synced' : sim.status === 'scheduled' ? '📅 Scheduled by HR' : '⚡ In Progress'}
+                                                    </span>
+                                                    <h4 className="hub-card-title">{sim.job_title}</h4>
+
+                                                    {sim.status === 'completed' ? (
+                                                        <div className="hub-card-info">
+                                                            <div className="ai-score-badge">
+                                                                <span className="ai-score-value">{sim.overall_score}%</span>
+                                                                <span className="ai-score-label">Final Evaluation Score</span>
+                                                            </div>
+                                                            <div className="hub-card-actions">
+                                                                <button
+                                                                    className="hub-btn hub-btn-secondary"
+                                                                    style={{ width: '100%' }}
+                                                                    onClick={() => handleLaunchSimulation(sim.job_id, sim.job_title, sim.session_id, sim.question_count)}
+                                                                >
+                                                                    View Full Report & Feedback
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ) : sim.status === 'scheduled' ? (
+                                                        <div className="hub-card-info">
+                                                            <p style={{ fontSize: '0.85rem', color: 'var(--gray-300)', margin: '0.5rem 0' }}>
+                                                                {sim.question_count || 5} Questions • Est. 30 mins • Pre-generated & Saved
+                                                            </p>
+                                                            <div className="hub-card-actions">
+                                                                <button
+                                                                    className="hub-btn hub-btn-primary"
+                                                                    style={{
+                                                                        width: '100%',
+                                                                        background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)',
+                                                                        fontWeight: 800
+                                                                    }}
+                                                                    onClick={() => handleLaunchSimulation(sim.job_id, sim.job_title, sim.session_id, sim.question_count)}
+                                                                >
+                                                                    🚀 [ Start Interview ]
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="hub-card-info">
+                                                            <p style={{ fontStyle: 'italic', fontSize: '0.85rem' }}>
+                                                                Question {sim.current_question_index + 1} of {sim.question_count} pending.
+                                                            </p>
+                                                            <div className="hub-card-actions">
+                                                                <button
+                                                                    className="hub-btn hub-btn-primary"
+                                                                    style={{ width: '100%' }}
+                                                                    onClick={() => handleLaunchSimulation(sim.job_id, sim.job_title, sim.session_id, sim.question_count)}
+                                                                >
+                                                                    Resume Interview ➔
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+
+                                    {/* Voice Screening Quick Card */}
+                                    <div className="card glass-card" style={{
+                                        marginBottom: '1.75rem',
+                                        padding: '1.25rem 1.5rem',
+                                        background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(16, 185, 129, 0.08) 100%)',
+                                        border: '1px solid rgba(99, 102, 241, 0.25)',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        flexWrap: 'wrap',
+                                        gap: '1rem'
+                                    }}>
+                                        <div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                                                <span style={{ fontSize: '1.25rem' }}>🎙️</span>
+                                                <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'white' }}>
+                                                    Interactive Oral Voice Screening
+                                                </h4>
+                                                <span className="hub-badge tag-ai">Speech-to-Text Live</span>
+                                            </div>
+                                            <p className="muted-text" style={{ margin: 0, fontSize: '0.85rem' }}>
+                                                Practice oral screening questions with real-time speech recognition, AI spoken prompts, and 5-dimension evaluation.
+                                            </p>
+                                        </div>
+                                        <button
+                                            className="hub-btn hub-btn-primary"
+                                            style={{ width: 'auto', padding: '0.6rem 1.25rem', whiteSpace: 'nowrap' }}
+                                            onClick={() => setActiveTab('voice')}
+                                        >
+                                            🗣️ Launch Voice Screening
+                                        </button>
+                                    </div>
+
+                                    {/* Practice Screenings Header */}
+                                    <div className="hub-section-header" style={{ marginTop: '1rem' }}>
+                                        <h4 style={{ margin: 0, fontSize: '1rem', color: 'var(--gray-300)' }}>
+                                            💬 Conversational Practice Sessions
+                                        </h4>
+                                        <button className="hub-btn hub-btn-secondary" style={{ width: 'auto', padding: '0.4rem 0.8rem', fontSize: '0.8rem' }} onClick={() => startAIInterview(null)}>
+                                            + Practice Chatbot
                                         </button>
                                     </div>
                                     <div className="hub-grid">
@@ -741,6 +1256,63 @@ export default function CandidatePortal() {
                     </div>
                 )}
 
+                {/* ACTIVE AI SIMULATION INTERVIEW (MILESTONE 3) */}
+                {activeTab === 'active-simulation' && (
+                    <div className="portal-section">
+                        <InterviewSimulationRoom
+                            sessionId={activeSimSession?.sessionId}
+                            candidateId={profile?.candidate_id}
+                            jobId={activeSimSession?.jobId}
+                            jobTitle={activeSimSession?.jobTitle}
+                            interviewType={activeSimSession?.interviewType || 'mixed'}
+                            numQuestions={activeSimSession?.numQuestions || 5}
+                            onClose={() => {
+                                setActiveTab('interviews');
+                                setActiveSimSession(null);
+                                loadInterviews();
+                                loadProfile();
+                            }}
+                        />
+                    </div>
+                )}
+
+                {/* VOICE SCREENING TAB */}
+                {activeTab === 'voice' && (
+                    <div className="portal-section voice-portal-section-wrapper">
+                        <div className="candidate-voice-portal-hero">
+                            <div className="candidate-voice-hero-left">
+                                <div className="candidate-voice-icon-circle">
+                                    🗣️
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'white' }}>
+                                            Candidate Oral Voice Screening Room
+                                        </h3>
+                                        <span className="hub-badge tag-ai">Speech-to-Text Live</span>
+                                    </div>
+                                    <p className="muted-text" style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem' }}>
+                                        Experience live AI spoken questions, word-by-word heard audio tracking, and instant speech recognition projected lively as you speak.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <VoiceScreeningSection
+                            isCandidateMode={true}
+                            candidateProfile={profile || { id: user?.id, name: user?.name, email: user?.email }}
+                            candidates={profile ? [profile] : [{ id: user?.id || 'demo-candidate', name: user?.name || 'Candidate', email: user?.email || '' }]}
+                            jobs={allJobs}
+                            selectedCandidateId={profile?.id || profile?.candidate_id || user?.id}
+                            onCandidateUpdated={() => {
+                                loadProfile();
+                                loadInterviews();
+                                loadMyApplications();
+                            }}
+                        />
+                    </div>
+                )}
+
                 {/* JOBS TAB */}
                 {activeTab === 'jobs' && (
                     <div className="portal-section">
@@ -769,8 +1341,14 @@ export default function CandidatePortal() {
                                     <div className="skill-tags" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '2rem' }}>
                                         {job.required_skills?.map((s, i) => <SkillTag key={i} skill={s} />)}
                                     </div>
-                                    <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ fontSize: '0.8rem', color: 'var(--gray-500)', fontWeight: 500 }}>👤 {job.owner_name || 'HireFlow Team'}</span>
+                                    <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                                        <button className="action-btn ghost-btn small-btn" onClick={() => {
+                                            setSelectedJobId(job.id);
+                                            setActiveTab('upskilling');
+                                            loadUpskilling(job.id);
+                                        }}>
+                                            🎯 Skill Gap Report
+                                        </button>
                                         <button className="action-btn primary-btn small-btn" style={{ padding: '0.5rem 1rem' }} onClick={() => {
                                             setApplyingJob(job);
                                             // Pre-select active resume if available
@@ -789,15 +1367,15 @@ export default function CandidatePortal() {
                     <div className="portal-section">
                         <div className="section-header">
                             <div>
-                                <h2>🚀 Career Growth & Upskilling</h2>
-                                <p className="muted-text">Bridge your skill gaps with AI-curated learning paths tailored to your target roles.</p>
+                                <h2>🚀 Career Growth & Skill Gap Analysis</h2>
+                                <p className="muted-text">Bridge your genuine skill gaps with AI-curated learning paths tailored to target roles.</p>
                             </div>
                         </div>
 
                         <div className="card glass-card" style={{ marginBottom: '2rem', padding: '1.5rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
                                 <div style={{ flex: 1, minWidth: '300px' }}>
-                                    <label style={{ fontSize: '0.8rem', color: 'var(--gray-400)', marginBottom: '0.5rem', display: 'block' }}>Target Career Role</label>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--gray-400)', marginBottom: '0.5rem', display: 'block' }}>Target Career Role for Skill Gap Analysis</label>
                                     <select
                                         className="form-input"
                                         style={{ width: '100%', cursor: 'pointer' }}
@@ -807,7 +1385,7 @@ export default function CandidatePortal() {
                                             loadUpskilling(e.target.value);
                                         }}
                                     >
-                                        <option value="">Select a role to analyze...</option>
+                                        <option value="">Select a role to analyze skill gap...</option>
                                         {allJobs.map(j => <option key={j.id} value={j.id}>{j.title}</option>)}
                                     </select>
                                 </div>
@@ -820,6 +1398,61 @@ export default function CandidatePortal() {
                                 </button>
                             </div>
                         </div>
+
+                        {/* Genuine Skill Gap Report Banner */}
+                        {upskillingData?.selected_job && (
+                            <div className="card glass-card" style={{ marginBottom: '2rem', padding: '1.5rem', background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(168, 85, 247, 0.05))', border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+                                    <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.4rem' }}>
+                                            <span className="hub-badge tag-invitation">Genuine Skill Gap Report</span>
+                                            <button
+                                                className="hub-btn hub-btn-primary"
+                                                style={{ padding: '0.3rem 0.8rem', fontSize: '0.75rem', borderRadius: '6px' }}
+                                                onClick={downloadSkillGapReport}
+                                            >
+                                                📥 Download Skill Gap Report (.txt)
+                                            </button>
+                                        </div>
+                                        <h3 style={{ margin: 0, fontSize: '1.4rem' }}>{upskillingData.selected_job.title}</h3>
+                                    </div>
+                                    <div style={{ textAlign: 'right' }}>
+                                        <div style={{ fontSize: '1.8rem', fontWeight: 900, color: upskillingData.skill_match_percentage >= 70 ? 'var(--emerald-400)' : 'var(--amber-400)' }}>
+                                            {upskillingData.skill_match_percentage}% Skill Match
+                                        </div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--gray-400)' }}>
+                                            {upskillingData.matched_skills?.length || 0} of {upskillingData.selected_job.required_skills?.length || 0} required skills matched in your resume
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="skill-gap-analysis" style={{ gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                                    <div className="skill-set-group" style={{ background: 'rgba(16, 185, 129, 0.05)', padding: '1rem', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.15)' }}>
+                                        <h4 style={{ color: 'var(--emerald-400)', margin: '0 0 0.75rem 0' }}>✅ Matched Resume Skills ({upskillingData.matched_skills?.length || 0})</h4>
+                                        <div className="skill-tags" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                            {upskillingData.matched_skills?.map((skill, i) => (
+                                                <SkillTag key={i} skill={skill} className="matched-pill" />
+                                            ))}
+                                            {(!upskillingData.matched_skills || upskillingData.matched_skills.length === 0) && (
+                                                <p style={{ fontSize: '0.8rem', color: 'var(--gray-400)', margin: 0 }}>No direct keyword skill matches found in your active resume.</p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="skill-set-group" style={{ background: 'rgba(244, 63, 94, 0.05)', padding: '1rem', borderRadius: '10px', border: '1px solid rgba(244, 63, 94, 0.15)' }}>
+                                        <h4 style={{ color: 'var(--rose-400)', margin: '0 0 0.75rem 0' }}>❌ Missing Skill Gaps ({upskillingData.skill_gaps?.length || 0})</h4>
+                                        <div className="skill-tags" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                            {upskillingData.skill_gaps?.map((skill, i) => (
+                                                <SkillTag key={i} skill={skill} className="missing-pill" />
+                                            ))}
+                                            {(!upskillingData.skill_gaps || upskillingData.skill_gaps.length === 0) && (
+                                                <p style={{ fontSize: '0.8rem', color: 'var(--emerald-400)', margin: 0 }}>🎉 Perfect skill alignment! No skill gaps detected for this role.</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {upskillingLoading ? (
                             <div className="loading-state" style={{ padding: '4rem 0' }}>

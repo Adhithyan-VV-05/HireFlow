@@ -27,8 +27,11 @@ def extract_text(file_path: str) -> str:
         return _extract_from_pdf(file_path)
     elif ext in (".docx", ".doc"):
         return _extract_from_docx(file_path)
+    elif ext == ".txt":
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            return f.read()
     else:
-        raise ValueError(f"Unsupported file format: {ext}. Use PDF or DOCX.")
+        raise ValueError(f"Unsupported file format: {ext}. Use PDF, DOCX, or TXT.")
 
 
 def _extract_from_pdf(file_path: str) -> str:
@@ -46,7 +49,7 @@ def _extract_from_pdf(file_path: str) -> str:
 
 
 def _extract_from_docx(file_path: str) -> str:
-    """Extract text from a DOCX file using python-docx."""
+    """Extract text from a DOCX file using python-docx including tables."""
     from docx import Document
 
     doc = Document(file_path)
@@ -55,4 +58,16 @@ def _extract_from_docx(file_path: str) -> str:
         text = para.text.strip()
         if text:
             paragraphs.append(text)
+
+    # Extract text from tables (resumes frequently format skills/education in tables)
+    for table in doc.tables:
+        for row in table.rows:
+            row_cells = []
+            for cell in row.cells:
+                ctext = cell.text.strip()
+                if ctext and ctext not in row_cells:
+                    row_cells.append(ctext)
+            if row_cells:
+                paragraphs.append(" | ".join(row_cells))
+
     return "\n".join(paragraphs)

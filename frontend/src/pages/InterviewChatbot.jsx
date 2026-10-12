@@ -451,12 +451,18 @@ import {
     TrendingUp,
     CheckCircle,
     Sparkles,
-    Info
+    Info,
+    Volume2,
+    VolumeX
 } from 'lucide-react';
 import { Layout } from '../components/layout';
 import { Button, Card, CardHeader, CardTitle, ProgressBar } from '../components/ui';
 import { ScoreCircle, StarRating } from '../components/ui/ScoreDisplay';
 import { getAllQuestions, calculateScore } from '../data/interviewQuestions';
+import { useVoiceInput } from '../hooks/useVoiceInput';
+import { useSpeechSynthesis } from '../hooks/useSpeechSynthesis';
+import VoiceInputButton from '../components/ui/VoiceInputButton';
+import VoiceConvertingIndicator from '../components/ui/VoiceConvertingIndicator';
 
 /* -------------------------
    Helper: Greeting Detection
@@ -540,6 +546,33 @@ const InterviewChatbot = () => {
     const [scores, setScores] = useState([]);
     const messagesEndRef = useRef(null);
 
+    // SpeechSynthesis for AI Interviewer questions
+    const {
+        speak,
+        cancel: cancelSpeech,
+        isSpeaking: isTtsSpeaking,
+        isMuted: isTtsMuted,
+        toggleMute: toggleTtsMute
+    } = useSpeechSynthesis();
+
+    // Voice recognition hook (SpeechRecognition / webkitSpeechRecognition)
+    const {
+        isListening,
+        isConverting,
+        isSpeaking: isUserSpeaking,
+        interimText,
+        audioLevel,
+        isSupported: voiceSupported,
+        recognitionEngine,
+        error: voiceError,
+        toggleListening,
+        stopListening,
+        resetTranscript,
+        simulateVoiceInput
+    } = useVoiceInput({
+        onTranscriptChange: (text) => setCurrentInput(text)
+    });
+
     const questions = getAllQuestions();
 
     useEffect(() => {
@@ -576,18 +609,20 @@ const InterviewChatbot = () => {
         setIsTyping(true);
 
         setTimeout(() => {
+            const q = questions[index];
             setMessages(prev => [
                 ...prev,
                 {
                     type: 'bot',
                     content:
-                        `Question ${index + 1}:\n\n${questions[index].question}\n\nPlease answer in clear points.`,
-                    category: questions[index].category,
+                        `Question ${index + 1}:\n\n${q.question}\n\nPlease answer in clear points.`,
+                    category: q.category,
                     timestamp: new Date(),
                 }
             ]);
             setCurrentQuestionIndex(index);
             setIsTyping(false);
+            speak(q.question);
         }, 1000);
     };
 
@@ -598,7 +633,11 @@ const InterviewChatbot = () => {
         e.preventDefault();
         if (!currentInput.trim() || isTyping) return;
 
+        cancelSpeech();
+        if (isListening) stopListening();
         const userText = currentInput.trim();
+        setCurrentInput('');
+        resetTranscript('');
 
         // Greeting Handling
         if (isGreeting(userText)) {
@@ -611,7 +650,6 @@ const InterviewChatbot = () => {
                         "Hello 👋\n\nI am your AI Interview Assistant.\n\nClick 'Start Interview' when you are ready.",
                 }
             ]);
-            setCurrentInput('');
             return;
         }
 
@@ -622,7 +660,6 @@ const InterviewChatbot = () => {
         };
 
         setMessages(prev => [...prev, userMessage]);
-        setCurrentInput('');
 
         const question = questions[currentQuestionIndex];
         const responseScore = calculateScore(userText, question.expectedKeywords);
@@ -729,12 +766,43 @@ const InterviewChatbot = () => {
                                     </div>
                                 ) : (
                                     <>
+                                        {/* Audio & Speech Controls Bar */}
+                                        <div className="px-6 py-3 bg-slate-50 border-b flex items-center justify-between text-xs text-slate-600">
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-semibold text-slate-800">🎙️ Speech Engine:</span>
+                                                <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 font-medium">
+                                                    {recognitionEngine !== 'none' ? recognitionEngine : 'Web Speech Recognition'}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={toggleTtsMute}
+                                                    className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
+                                                    title={isTtsMuted ? "Unmute AI voice spoken questions" : "Mute AI voice"}
+                                                >
+                                                    {isTtsMuted ? <VolumeX size={14} className="text-red-500" /> : <Volume2 size={14} className="text-emerald-500" />}
+                                                    <span>{isTtsMuted ? 'Voice Muted' : 'AI Voice On'}</span>
+                                                </button>
+                                            </div>
+                                        </div>
+
                                         <div className="flex-1 overflow-y-auto p-6 space-y-4">
                                             {messages.map((msg, index) => (
-                                                <div key={index} className="flex">
-                                                    <div className="max-w-[80%] whitespace-pre-line bg-white border rounded-xl p-4 shadow-sm">
+                                                <div key={index} className="flex flex-col">
+                                                    <div className={`max-w-[80%] whitespace-pre-line border rounded-xl p-4 shadow-sm ${msg.type === 'user' ? 'bg-indigo-50 border-indigo-200 self-end' : 'bg-white self-start'}`}>
                                                         {msg.content}
                                                     </div>
+                                                    {msg.type === 'bot' && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => speak(msg.content)}
+                                                            className="text-[11px] text-slate-400 hover:text-indigo-600 self-start mt-1 ml-2 flex items-center gap-1"
+                                                            title="Replay question audio"
+                                                        >
+                                                            <Volume2 size={12} /> Listen
+                                                        </button>
+                                                    )}
                                                 </div>
                                             ))}
                                             {isTyping && <div>AI is typing...</div>}
@@ -742,16 +810,57 @@ const InterviewChatbot = () => {
                                         </div>
 
                                         <div className="p-4 border-t bg-white">
-                                            <form onSubmit={handleSubmit} className="flex gap-3">
+                                            {voiceError && (
+                                                <div className="mb-2 text-xs text-red-600 font-medium">
+                                                    ⚠️ {voiceError}
+                                                </div>
+                                            )}
+
+                                            {/* Lively Audio-to-Text Converting Animation */}
+                                            {isListening && (
+                                                <VoiceConvertingIndicator
+                                                    isListening={isListening}
+                                                    isConverting={isConverting}
+                                                    isSpeaking={isUserSpeaking}
+                                                    audioLevel={audioLevel}
+                                                    interimText={interimText}
+                                                    targetLabel="Your Answer"
+                                                    compact={true}
+                                                />
+                                            )}
+
+                                            <form onSubmit={handleSubmit} className="flex gap-2.5 items-center">
                                                 <input
                                                     type="text"
                                                     value={currentInput}
-                                                    onChange={(e) => setCurrentInput(e.target.value)}
-                                                    placeholder={interviewComplete ? "Interview Complete" : "Type your answer..."}
+                                                    onChange={(e) => {
+                                                        setCurrentInput(e.target.value);
+                                                        resetTranscript(e.target.value);
+                                                    }}
+                                                    placeholder={interviewComplete ? "Interview Complete" : isListening ? "Listening... Speak your answer now..." : "Type or speak your answer..."}
                                                     disabled={isTyping || interviewComplete}
                                                     className="input flex-1"
                                                 />
-                                                <Button type="submit" icon={Send}>
+                                                <VoiceInputButton
+                                                    isListening={isListening}
+                                                    audioLevel={audioLevel}
+                                                    isSupported={voiceSupported}
+                                                    onClick={() => toggleListening(currentInput)}
+                                                    disabled={isTyping || interviewComplete}
+                                                    size="md"
+                                                    showWaveform={true}
+                                                    title={isListening ? "Stop listening" : "Click to speak answer with SpeechRecognition"}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => simulateVoiceInput("I structure my applications using modular components, centralized state management, and resilient error boundaries.")}
+                                                    disabled={isTyping || interviewComplete || isListening}
+                                                    className="px-2.5 py-2 text-xs font-semibold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1 border border-slate-200 whitespace-nowrap"
+                                                    title="Simulate speech-to-text dictation"
+                                                >
+                                                    <Sparkles size={13} /> Demo Voice
+                                                </button>
+                                                <Button type="submit" icon={Send} disabled={!currentInput.trim() || isTyping || interviewComplete}>
                                                     Send
                                                 </Button>
                                             </form>

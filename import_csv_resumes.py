@@ -231,6 +231,9 @@ def process_row(row: dict, idx: int, db) -> bool:
         chunk_text = chunks.get(chunk_type, "")
         start_id = add_vectors(embedding.reshape(1, -1))
 
+        # Clear any stale or duplicate vector_id entry in SQLite
+        db.query(FaissMetadata).filter(FaissMetadata.vector_id == start_id).delete(synchronize_session=False)
+
         metadata = {
             "skills_tags": all_skills,
             "years_exp": 0,

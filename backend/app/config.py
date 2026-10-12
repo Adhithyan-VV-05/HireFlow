@@ -3,11 +3,29 @@
 import os
 from dotenv import load_dotenv
 
-# Load .env file
-load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
-
 # Base directory of the backend
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_ROOT = os.path.dirname(BASE_DIR)
+
+# Force all HuggingFace, PyTorch, SentenceTransformers & temp caches to D: drive
+CACHE_DIR = os.path.join(PROJECT_ROOT, ".cache")
+TMP_DIR = os.path.join(PROJECT_ROOT, "tmp")
+
+os.makedirs(CACHE_DIR, exist_ok=True)
+os.makedirs(TMP_DIR, exist_ok=True)
+
+os.environ["HF_HOME"] = os.path.join(CACHE_DIR, "huggingface")
+os.environ["TRANSFORMERS_CACHE"] = os.path.join(CACHE_DIR, "huggingface", "hub")
+os.environ["TORCH_HOME"] = os.path.join(CACHE_DIR, "torch")
+os.environ["SENTENCE_TRANSFORMERS_HOME"] = os.path.join(CACHE_DIR, "sentence_transformers")
+os.environ["TMPDIR"] = TMP_DIR
+os.environ["TEMP"] = TMP_DIR
+os.environ["TMP"] = TMP_DIR
+os.environ["TIKTOKEN_CACHE_DIR"] = os.path.join(CACHE_DIR, "tiktoken")
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+
+# Load .env file
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 # Upload directory
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")

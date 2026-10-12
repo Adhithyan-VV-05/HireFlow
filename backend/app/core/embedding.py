@@ -22,12 +22,12 @@ def load_embedding_model(device: str = "cpu"):
     try:
         from sentence_transformers import SentenceTransformer
         _model = SentenceTransformer(EMBEDDING_MODEL, device=device)
-        print(f"[Embedding] Loaded {EMBEDDING_MODEL} on {device}")
+        print(f"[Embedding] Loaded {EMBEDDING_MODEL} on {device}", flush=True)
     except Exception as e:
-        print(f"[Embedding] Failed on {device}, falling back to CPU: {e}")
+        print(f"[Embedding] Failed on {device}, falling back to CPU: {e}", flush=True)
         from sentence_transformers import SentenceTransformer
         _model = SentenceTransformer(EMBEDDING_MODEL, device="cpu")
-        print(f"[Embedding] Loaded {EMBEDDING_MODEL} on CPU")
+        print(f"[Embedding] Loaded {EMBEDDING_MODEL} on CPU", flush=True)
 
 
 def embed_text(text: str) -> np.ndarray:
@@ -39,8 +39,9 @@ def embed_text(text: str) -> np.ndarray:
     Returns:
         384-dim float32 numpy array (L2 normalized).
     """
+    global _model
     if _model is None:
-        raise RuntimeError("Embedding model not loaded. Call load_embedding_model() first.")
+        load_embedding_model(device="cpu")
 
     if not text or not text.strip():
         return np.zeros(384, dtype=np.float32)

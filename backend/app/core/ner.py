@@ -8,8 +8,12 @@ from typing import Optional
 
 from app.config import NER_MODEL
 
+import threading
+
 # Global pipeline instance (loaded once at startup)
 _ner_pipeline = None
+_ner_lock = threading.Lock()
+_ner_load_attempted = False
 
 # Keywords for mapping NER entities to domain categories
 SKILL_KEYWORDS = {
@@ -88,9 +92,9 @@ def load_ner_model(device: int = -1):
             aggregation_strategy="simple",
             device=device,
         )
-        print(f"[NER] Loaded {NER_MODEL} on device={device}")
+        print(f"[NER] Loaded {NER_MODEL} on device={device}", flush=True)
     except Exception as e:
-        print(f"[NER] Failed to load on device={device}, falling back to CPU: {e}")
+        print(f"[NER] Failed to load on device={device}, falling back to CPU: {e}", flush=True)
         from transformers import pipeline
         _ner_pipeline = pipeline(
             "ner",
@@ -98,7 +102,7 @@ def load_ner_model(device: int = -1):
             aggregation_strategy="simple",
             device=-1,
         )
-        print(f"[NER] Loaded {NER_MODEL} on CPU")
+        print(f"[NER] Loaded {NER_MODEL} on CPU", flush=True)
 
 
 def _is_clean_entity(word: str, min_len: int = 3) -> bool:
@@ -257,8 +261,12 @@ def extract_entities(text: str) -> dict:
         Dict with keys: SKILL, JOB_TITLE, COMPANY, DATE, EDUCATION, LOCATION.
         Each value is a list of unique entity strings.
     """
+    global _ner_pipeline
     if _ner_pipeline is None:
-        raise RuntimeError("NER model not loaded. Call load_ner_model() first.")
+        try:
+            load_ner_model(device=0)
+        except Exception:
+            load_ner_model(device=-1)
 
     entities = {
         "SKILL": set(),

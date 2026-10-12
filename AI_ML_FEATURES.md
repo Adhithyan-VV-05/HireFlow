@@ -207,6 +207,25 @@ HireFlow AI provides personalized learning paths to help candidates bridge skill
 
 ---
 
+## Layer 11: Voice Screening & Multi-Dimensional Oral Assessment
+
+**File:** `app/core/voice_screening.py` & `app/routes/voice_screening.py`  
+**Model:** Web Speech API (STT/TTS) + LLM / Heuristic Multi-Dimension Evaluator
+
+HireFlow AI automates early-stage candidate phone/voice screenings:
+
+- **Oral Question Synthesis**: Contextual questions generated specifically for spoken delivery (TTS-ready) based on candidate resume and required job skills.
+- **Real-Time Speech Processing**: Web Speech API handles client-side speech recognition with live transcription visualizer and session recording note generation.
+- **5-Dimensional Rubric Evaluation**:
+  - `Technical Knowledge` (30% weight)
+  - `Response Relevance` (25% weight)
+  - `Communication & Clarity` (20% weight)
+  - `Completeness` (15% weight)
+  - `Role-Specific Knowledge` (10% weight)
+- **Workflow Transition & ATS Sync**: Automatically computes weighted composite score, assigns actionable verdict (`Proceed to Next Round` / `Requires Further Review` / `Do Not Proceed`), and updates the candidate's ATS status to `Screened` with audit trail history.
+
+---
+
 ## Models Summary
 
 | Model | Purpose | Dimensions | Source |
@@ -215,7 +234,8 @@ HireFlow AI provides personalized learning paths to help candidates bridge skill
 | `all-MiniLM-L6-v2` | Sentence Embedding | 384-dim | Sentence-Transformers |
 | FAISS `IndexFlatIP` | Vector Similarity Search | 384-dim | Meta AI |
 | BM25Okapi | Keyword Search | Sparse | rank-bm25 |
-| GPT / Gemini | Conversational Interview | — | OpenAI / Google |
+| GPT / Gemini | Conversational Interview & Voice Screening | — | OpenAI / Google |
+| Web Speech API | Client-side STT & TTS | Audio streaming | Browser Native |
 
 ---
 
@@ -228,7 +248,7 @@ HireFlow AI provides personalized learning paths to help candidates bridge skill
 2. Load MiniLM embedding model (CUDA → CPU fallback)
 3. Load/create FAISS index from disk
 4. Rebuild BM25 index from database
-5. Initialize LLM for interviews
+5. Initialize LLM for interviews & voice screening
 ```
 
 All models are loaded once at server startup and reused for all requests.

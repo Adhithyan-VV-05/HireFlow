@@ -42,7 +42,7 @@ def add_vectors(vectors: np.ndarray) -> int:
     """
     global _index
     if _index is None:
-        raise RuntimeError("FAISS index not initialized. Call load_or_create() first.")
+        load_or_create()
 
     start_id = _index.ntotal
     vectors = np.ascontiguousarray(vectors, dtype=np.float32)
@@ -62,8 +62,9 @@ def search(query_vector: np.ndarray, top_k: int = 10) -> Tuple[np.ndarray, np.nd
     Returns:
         Tuple of (scores array, ids array), each of shape (top_k,).
     """
+    global _index
     if _index is None:
-        raise RuntimeError("FAISS index not initialized. Call load_or_create() first.")
+        load_or_create()
 
     if _index.ntotal == 0:
         return np.array([]), np.array([])
@@ -88,3 +89,7 @@ def get_total_vectors() -> int:
     if _index is None:
         return 0
     return _index.ntotal
+
+
+get_index_size = get_total_vectors
+

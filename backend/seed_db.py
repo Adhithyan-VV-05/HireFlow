@@ -7,16 +7,22 @@ from app.core.auth import hash_password
 from app.db.session import SessionLocal
 from app.db.models import User, Candidate, Job, FaissMetadata
 
-DB_PATH = "hireflow.db"
+from app.config import BASE_DIR
+
+DB_PATH = os.path.join(BASE_DIR, "hireflow.db")
 
 def clear_db():
     print("Clearing database...")
     if os.path.exists(DB_PATH):
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(DB_PATH, timeout=60.0)
         cursor = conn.cursor()
+        try:
+            cursor.execute("PRAGMA journal_mode=WAL;")
+        except Exception:
+            pass
         tables = [
             "job_applications", "interviews", "aptitude_tests", "faiss_metadata", 
-            "jobs", "candidates", "users"
+            "jobs", "candidates", "users", "resumes", "skill_assessments"
         ]
         for table in tables:
             try:
@@ -29,7 +35,24 @@ def clear_db():
     else:
         print("Database file not found.")
 
+    faiss_path = os.path.join(BASE_DIR, "hireflow.index")
+    if os.path.exists(faiss_path):
+        try:
+            os.remove(faiss_path)
+            print(f"Removed FAISS index: {faiss_path}")
+        except Exception as e:
+            print(f"Error removing FAISS index: {e}")
+
+from app.db import init_db
+
 def seed():
+    print("Initializing database tables...")
+    init_db()
+    
+    from app.core.embedding import embed_text
+    from app.core.index import load_or_create, add_vectors, save as save_index
+    load_or_create()
+
     db = SessionLocal()
     try:
         # 1. Create Recruiters (Role: interviewer)
@@ -61,6 +84,7 @@ def seed():
         ]
 
         for r in recruiters:
+            db.query(User).filter(User.email == r["email"]).delete(synchronize_session=False)
             user = User(
                 id=r["id"],
                 name=r["name"],
@@ -156,6 +180,9 @@ def seed():
             user_id = str(uuid.uuid4())
             cand_id = str(uuid.uuid4())
             
+            db.query(User).filter(User.email == c["email"]).delete(synchronize_session=False)
+            db.query(Candidate).filter(Candidate.email == c["email"]).delete(synchronize_session=False)
+
             # Create User for candidate
             user = User(
                 id=user_id,
@@ -182,7 +209,13 @@ def seed():
             
             # Add FAISS Metadata so Search works (Required for index logic)
             chunk_text = f"Candidate Profile for {c['name']}. Domain: {c['domain']}. Skills: {', '.join(c['skills'])}."
+            vec = embed_text(chunk_text)
+            start_id = add_vectors(vec.reshape(1, -1))
+
+            db.query(FaissMetadata).filter(FaissMetadata.vector_id == start_id).delete(synchronize_session=False)
+
             meta = FaissMetadata(
+                vector_id=start_id,
                 candidate_id=cand_id,
                 chunk_type="full_profile",
                 chunk_text=chunk_text,
@@ -191,6 +224,7 @@ def seed():
             db.add(meta)
 
         db.commit()
+        save_index()
         print("Candidates created.")
 
     finally:

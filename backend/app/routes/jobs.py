@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db, Job
 from app.db.models import User, JobApplication, Candidate
 from app.core.auth import get_current_user, require_interviewer
-from app.schemas import CreateJobRequest, ApplyJobRequest
+from app.schemas import CreateJobRequest, ApplyJobRequest, UpdateJobRequest
 from app.services.ranking import compute_ranking_for_application
 
 router = APIRouter(prefix="/api", tags=["jobs"])
@@ -190,3 +190,70 @@ async def get_my_applications(
             for app in applications
         ]
     }
+
+
+@router.put("/jobs/{job_id}")
+@router.patch("/jobs/{job_id}")
+async def update_job(
+    job_id: str,
+    request: UpdateJobRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_interviewer),
+):
+    """Update an existing job posting. Recruiter/interviewer only."""
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(404, "Job not found")
+
+    # If owner_id is set, ensure only owner or interviewer can update
+    if job.owner_id and job.owner_id != current_user.id and current_user.role != "interviewer":
+        raise HTTPException(403, "Not authorized to update this job")
+
+    if request.title is not None:
+        job.title = request.title
+    if request.description is not None:
+        job.description = request.description
+    if request.required_skills is not None:
+        job.required_skills_json = json.dumps(request.required_skills)
+    if request.deadline is not None:
+        try:
+            job.deadline = datetime.fromisoformat(request.deadline.replace("Z", "+00:00"))
+        except Exception:
+            pass
+
+    db.commit()
+    db.refresh(job)
+
+    return {
+        "message": "Job updated successfully",
+        "job": {
+            "id": job.id,
+            "title": job.title,
+            "description": job.description,
+            "required_skills": job.required_skills,
+            "deadline": str(job.deadline) if job.deadline else None,
+        }
+    }
+
+
+@router.delete("/jobs/{job_id}")
+async def delete_job(
+    job_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_interviewer),
+):
+    """Delete a job posting and cascade clean associated applications."""
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(404, "Job not found")
+
+    if job.owner_id and job.owner_id != current_user.id and current_user.role != "interviewer":
+        raise HTTPException(403, "Not authorized to delete this job")
+
+    # Clean up applications for this job
+    db.query(JobApplication).filter(JobApplication.job_id == job_id).delete(synchronize_session=False)
+
+    db.delete(job)
+    db.commit()
+
+    return {"message": f"Job '{job.title}' deleted successfully", "job_id": job_id}

@@ -27,8 +27,8 @@ async def upload_resume(
         raise HTTPException(400, "No file provided")
 
     ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in (".pdf", ".docx", ".doc"):
-        raise HTTPException(400, f"Unsupported file format: {ext}. Use PDF or DOCX.")
+    if ext not in (".pdf", ".docx", ".doc", ".txt"):
+        raise HTTPException(400, f"Unsupported file format: {ext}. Use PDF, DOCX, or TXT.")
 
     try:
         content = await file.read()

@@ -1,5 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { api } from '../api/client';
+import { useVoiceInput } from '../hooks/useVoiceInput';
+import { useSpeechSynthesis } from '../hooks/useSpeechSynthesis';
+import VoiceInputButton from '../components/ui/VoiceInputButton';
+import VoiceConvertingIndicator from '../components/ui/VoiceConvertingIndicator';
+import { Sparkles, Volume2, VolumeX } from 'lucide-react';
 
 /**
  * AptitudeChatbot
@@ -18,6 +23,33 @@ export default function AptitudeChatbot({ candidateId, onClose }) {
     const [error, setError] = useState('');
     const [questionNumber, setQuestionNumber] = useState(0);
     const [liveScores, setLiveScores] = useState({});
+
+    // SpeechSynthesis for AI Interviewer questions
+    const {
+        speak,
+        cancel: cancelSpeech,
+        isSpeaking: isTtsSpeaking,
+        isMuted: isTtsMuted,
+        toggleMute: toggleTtsMute
+    } = useSpeechSynthesis();
+
+    // Voice recognition hook with live conversion tracking (SpeechRecognition / webkitSpeechRecognition)
+    const {
+        isListening,
+        isConverting,
+        isSpeaking,
+        interimText,
+        audioLevel,
+        isSupported: voiceSupported,
+        recognitionEngine,
+        error: voiceError,
+        toggleListening,
+        stopListening,
+        resetTranscript,
+        simulateVoiceInput
+    } = useVoiceInput({
+        onTranscriptChange: (text) => setInput(text)
+    });
 
     const bottomRef = useRef(null);
     const inputRef = useRef(null);
@@ -41,6 +73,7 @@ export default function AptitudeChatbot({ candidateId, onClose }) {
             setMessages([{ role: 'ai', content: data.message }]);
             setQuestionNumber(data.question_number || 1);
             setPhase('chat');
+            if (data.message) speak(data.message);
         } catch (err) {
             setError(err.message || 'Failed to start aptitude test.');
             setPhase('intro');
@@ -50,7 +83,10 @@ export default function AptitudeChatbot({ candidateId, onClose }) {
     const sendMessage = async () => {
         const text = input.trim();
         if (!text || sending || !sessionId) return;
+        cancelSpeech();
+        if (isListening) stopListening();
         setInput('');
+        resetTranscript('');
         setSending(true);
         setMessages(prev => [...prev, { role: 'user', content: text }]);
 
@@ -59,6 +95,7 @@ export default function AptitudeChatbot({ candidateId, onClose }) {
             setMessages(prev => [...prev, { role: 'ai', content: data.message }]);
             setQuestionNumber(data.question_number || questionNumber);
             if (data.scores) setLiveScores(data.scores);
+            if (data.message) speak(data.message);
 
             if (data.status === 'completed') {
                 const res = await api.getAptitudeResult(sessionId);
@@ -271,7 +308,12 @@ export default function AptitudeChatbot({ candidateId, onClose }) {
                         <div className="aptitude-chat-header-info">
                             <div className="aptitude-ai-avatar">🤖</div>
                             <div>
-                                <div className="aptitude-chat-header-title">AI Aptitude Interviewer</div>
+                                <div className="aptitude-chat-header-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <span>AI Aptitude Interviewer</span>
+                                    <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', borderRadius: 4, background: 'rgba(99, 102, 241, 0.2)', color: '#818cf8', fontWeight: 700 }}>
+                                        {recognitionEngine}
+                                    </span>
+                                </div>
                                 <div className="aptitude-chat-header-sub">
                                     {sending ? (
                                         <span className="aptitude-typing">
@@ -284,8 +326,30 @@ export default function AptitudeChatbot({ candidateId, onClose }) {
                                 </div>
                             </div>
                         </div>
-                        <div className="aptitude-qnum-badge">
-                            Q {Math.min(questionNumber, 8)} / 8
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <button
+                                type="button"
+                                onClick={toggleTtsMute}
+                                className="icon-btn"
+                                style={{
+                                    width: 32,
+                                    height: 32,
+                                    borderRadius: '8px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    background: 'rgba(255, 255, 255, 0.05)',
+                                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                                    color: isTtsMuted ? '#f87171' : '#10b981',
+                                    cursor: 'pointer'
+                                }}
+                                title={isTtsMuted ? "Unmute AI spoken audio" : "Mute AI audio"}
+                            >
+                                {isTtsMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                            </button>
+                            <div className="aptitude-qnum-badge">
+                                Q {Math.min(questionNumber, 8)} / 8
+                            </div>
                         </div>
                     </div>
 
@@ -301,7 +365,28 @@ export default function AptitudeChatbot({ candidateId, onClose }) {
                                     <div className="aptitude-msg-avatar">🤖</div>
                                 )}
                                 <div className={`aptitude-bubble aptitude-bubble-${msg.role}`}>
-                                    {msg.content}
+                                    <div>{msg.content}</div>
+                                    {msg.role === 'ai' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => speak(msg.content)}
+                                            style={{
+                                                marginTop: '0.35rem',
+                                                background: 'transparent',
+                                                border: 'none',
+                                                color: '#a5b4fc',
+                                                fontSize: '0.72rem',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.3rem',
+                                                padding: 0
+                                            }}
+                                            title="Replay audio of this question"
+                                        >
+                                            <Volume2 size={12} /> Listen
+                                        </button>
+                                    )}
                                 </div>
                                 {msg.role === 'user' && (
                                     <div className="aptitude-msg-avatar aptitude-user-avatar">👤</div>
@@ -321,22 +406,77 @@ export default function AptitudeChatbot({ candidateId, onClose }) {
                         <div ref={bottomRef} />
                     </div>
 
-                    {/* Input */}
-                    <div className="aptitude-input-area">
+                    {/* Lively Voice Converting & Loading Animation Indicator */}
+                    <div style={{ padding: '0 1rem' }}>
+                        <VoiceConvertingIndicator
+                            isListening={isListening}
+                            isConverting={isConverting}
+                            isSpeaking={isSpeaking}
+                            audioLevel={audioLevel}
+                            interimText={interimText}
+                            targetLabel="Interview Answer"
+                        />
+                    </div>
+
+                    {voiceError && (
+                        <div style={{ margin: '0 1rem 0.5rem', padding: '0.4rem 1rem', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', color: '#fca5a5', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span>⚠️ {voiceError}</span>
+                        </div>
+                    )}
+
+                    <div className="aptitude-input-area" style={{ position: 'relative' }}>
                         <textarea
                             ref={inputRef}
-                            className="aptitude-input"
-                            placeholder="Type your answer here… (Enter to send, Shift+Enter for new line)"
+                            className={`aptitude-input ${isListening ? 'm4-transcript-box-active' : ''}`}
+                            placeholder={isListening ? "Listening... Your spoken words are being lively converted here in real-time." : "Type your answer or click the mic to speak… (Enter to send)"}
                             value={input}
-                            onChange={e => setInput(e.target.value)}
+                            onChange={e => {
+                                setInput(e.target.value);
+                                resetTranscript(e.target.value);
+                            }}
                             onKeyDown={handleKey}
                             disabled={sending}
                             rows={2}
+                        />
+
+                        {/* Test Voice Demo Button */}
+                        <button
+                            type="button"
+                            className="icon-btn"
+                            onClick={() => simulateVoiceInput("I prioritize decoupling components, writing predictable asynchronous state, and verifying edge cases.")}
+                            title="Simulate speech-to-text audio conversion"
+                            style={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: 'rgba(99, 102, 241, 0.12)',
+                                border: '1px solid rgba(99, 102, 241, 0.25)',
+                                color: '#a5b4fc',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease'
+                            }}
+                        >
+                            <Sparkles size={16} />
+                        </button>
+
+                        <VoiceInputButton
+                            isListening={isListening}
+                            audioLevel={audioLevel}
+                            isSupported={voiceSupported}
+                            onClick={() => toggleListening(input)}
+                            disabled={sending}
+                            size="md"
+                            showWaveform={true}
+                            title={isListening ? "Stop voice recording" : "Speak answer with microphone"}
                         />
                         <button
                             className="aptitude-send-btn"
                             onClick={sendMessage}
                             disabled={sending || !input.trim()}
+                            title="Send answer"
                         >
                             {sending ? <span className="aptitude-spinner" /> : '➤'}
                         </button>

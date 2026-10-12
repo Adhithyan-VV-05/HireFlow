@@ -48,8 +48,12 @@ Thumbs.db
 # Database & Index files
 # ========================
 *.db
+*.db-shm
+*.db-wal
+*.db-journal
 *.index
 *.sqlite3
+.pytest_cache/
 
 # ========================
 # Uploaded files (user data)

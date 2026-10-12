@@ -5,6 +5,8 @@ import re
 import json
 from typing import Dict
 
+from app.core.openrouter import call_openrouter, is_openrouter_configured, get_openrouter_model
+
 # LLM client state
 _openai_client = None
 _gemini_model = None
@@ -12,15 +14,24 @@ _llm_provider = None
 
 
 def init_llm():
-    """Initialize the LLM client. Tries Gemini first, then OpenAI."""
+    """Initialize the LLM client. Tries OpenRouter first, then Gemini, then OpenAI."""
     global _openai_client, _gemini_model, _llm_provider
+
+    if is_openrouter_configured():
+        _llm_provider = "openrouter"
+        model_name = get_openrouter_model()
+        print(f"[LLM] Using OpenRouter API (Primary, model={model_name})")
+        return
 
     gemini_key = os.environ.get("GEMINI_API_KEY")
     if gemini_key:
         try:
             import google.generativeai as genai
             genai.configure(api_key=gemini_key)
-            _gemini_model = genai.GenerativeModel("gemini-2.5-flash")
+            try:
+                _gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+            except Exception:
+                _gemini_model = genai.GenerativeModel("gemini-pro")
             _llm_provider = "gemini"
             print("[LLM] Using Gemini API (Primary)")
             
@@ -45,24 +56,27 @@ def init_llm():
         except Exception as e:
             print(f"[LLM] OpenAI init failed: {e}")
 
-    print("[LLM] WARNING: No healthy LLM API key found. Set OPENAI_API_KEY or GEMINI_API_KEY.")
+    print("[LLM] WARNING: No healthy LLM API key found. Set OPENROUTER_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY.")
     _llm_provider = "mock"
 
 
 def call_llm(system_prompt: str, messages: list) -> str:
-    """Call the LLM API with conversation history."""
-    # Try the active provider
+    """Call the LLM API with conversation history. Tries OpenRouter -> Gemini -> OpenAI."""
+    # Try OpenRouter if configured
+    if is_openrouter_configured():
+        try:
+            return call_openrouter(system_prompt, messages)
+        except Exception as e:
+            print(f"[LLM] OpenRouter call failed: {e}. Falling back to next available provider...")
+
+    # Try Gemini or OpenAI
     try:
-        if _llm_provider == "openai" and _openai_client:
+        if _gemini_model:
+            return _call_gemini(system_prompt, messages)
+        elif _openai_client:
             return _call_openai(system_prompt, messages)
-        elif _llm_provider == "gemini" and _gemini_model:
-            return _call_gemini(system_prompt, messages)
     except Exception as e:
-        # If OpenAI fails due to quota, try Gemini if available
-        if "insufficient_quota" in str(e).lower() and _gemini_model:
-            print("[LLM] OpenAI Quota exceeded. Falling back to Gemini...")
-            return _call_gemini(system_prompt, messages)
-        raise e
+        print(f"[LLM] Secondary provider failed: {e}")
 
     # Mock response for testing without API keys
     is_interview = any(msg["role"] == "user" for msg in messages)

@@ -14,6 +14,8 @@ import {
 import { Layout } from '../components/layout';
 import { Button, Card, CardHeader, CardTitle, ProgressBar } from '../components/ui';
 import { SkillTag, ScoreCircle } from '../components/ui/ScoreDisplay';
+import { useVoiceInput } from '../hooks/useVoiceInput';
+import VoiceInputButton from '../components/ui/VoiceInputButton';
 
 /**
  * Resume Screening Module
@@ -24,6 +26,18 @@ const ResumeScreening = () => {
     const [jobDescription, setJobDescription] = useState('');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisResult, setAnalysisResult] = useState(null);
+
+    // SpeechRecognition hook for Job Description dictation
+    const {
+        isListening,
+        audioLevel,
+        isSupported: voiceSupported,
+        recognitionEngine,
+        toggleListening,
+        resetTranscript
+    } = useVoiceInput({
+        onTranscriptChange: (text) => setJobDescription(text)
+    });
 
     // Simulated extracted skills from resume
     const mockExtractedSkills = [
@@ -189,19 +203,38 @@ const ResumeScreening = () => {
 
                             {/* Job Description */}
                             <Card>
-                                <CardHeader>
+                                <CardHeader className="flex flex-row items-center justify-between">
                                     <CardTitle className="flex items-center gap-2">
                                         <FileText className="w-5 h-5 text-primary-600" />
                                         Job Description
                                     </CardTitle>
+                                    <div className="flex items-center gap-2">
+                                        <VoiceInputButton
+                                            isListening={isListening}
+                                            audioLevel={audioLevel}
+                                            isSupported={voiceSupported}
+                                            onClick={() => toggleListening(jobDescription)}
+                                            size="sm"
+                                            showWaveform={true}
+                                            title={isListening ? "Stop voice dictation" : `Click to speak Job Description (${recognitionEngine})`}
+                                        />
+                                        {isListening && (
+                                            <span className="text-xs text-emerald-600 font-semibold animate-pulse">
+                                                Listening...
+                                            </span>
+                                        )}
+                                    </div>
                                 </CardHeader>
                                 <div className="px-6 pb-6">
                                     <textarea
                                         value={jobDescription}
-                                        onChange={(e) => setJobDescription(e.target.value)}
-                                        placeholder="Paste the job description here to match against the resume..."
+                                        onChange={(e) => {
+                                            setJobDescription(e.target.value);
+                                            resetTranscript(e.target.value);
+                                        }}
+                                        placeholder={isListening ? "Listening... Speak job description requirements aloud..." : "Paste or click mic to dictate the job description here..."}
                                         rows={6}
-                                        className="input resize-none"
+                                        className={`input resize-none ${isListening ? 'border-indigo-500 bg-indigo-50/20' : ''}`}
                                     />
                                     <p className="text-sm text-slate-500 mt-2">
                                         The AI will extract required skills and match them against the resume.

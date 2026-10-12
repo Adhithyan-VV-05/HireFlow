@@ -55,6 +55,13 @@ class CreateJobRequest(BaseModel):
     deadline: Optional[str] = None
 
 
+class UpdateJobRequest(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    required_skills: Optional[List[str]] = None
+    deadline: Optional[str] = None
+
+
 class ScheduleInterviewRequest(BaseModel):
     candidate_id: str
     job_id: str
